@@ -1,0 +1,46 @@
+product_id,urun_adi,subkategori_id,fiyat,marka,birim,marka_tipi,ambalaj_tipi
+P001,Split Klima 9000 BTU,SK1,8500,Daikin,Adet,profesyonel,buyuk
+P002,Split Klima 12000 BTU,SK1,11000,Mitsubishi,Adet,profesyonel,buyuk
+P003,Split Klima 18000 BTU,SK1,15000,Daikin,Adet,profesyonel,buyuk
+P004,Klima Montaj Seti,SK1,450,Genel,Set,profesyonel,buyuk
+P005,Klima Bakim Spreyi,SK1,120,Genel,Adet,ekonomik,kucuk
+P006,Kombi 24kW Yogusmali,SK2,18000,Bosch,Adet,profesyonel,buyuk
+P007,Kombi 28kW Yogusmali,SK2,22000,Vaillant,Adet,profesyonel,buyuk
+P008,Kombi Baglanti Seti,SK2,850,Genel,Set,profesyonel,buyuk
+P009,Genlesme Tanki 8L,SK2,350,Reflex,Adet,profesyonel,kucuk
+P010,Kombi Filtresi Manyetik,SK2,280,Genel,Adet,profesyonel,kucuk
+P011,Panel Radyator 600x1000,SK3,1200,Purmo,Adet,profesyonel,buyuk
+P012,Panel Radyator 600x600,SK3,750,Purmo,Adet,profesyonel,buyuk
+P013,Radyator Vanasi Termo,SK3,120,Danfoss,Adet,profesyonel,kucuk
+P014,Radyator Reflektoru,SK3,45,Genel,Adet,ekonomik,buyuk
+P015,Purjor Otomatik,SK3,35,Genel,Adet,ekonomik,kucuk
+P016,NYM Kablo 3x2.5mm 100m,SK4,320,Prysmian,Makara,profesyonel,buyuk
+P017,NYA Kablo 1x4mm 100m,SK4,180,Prysmian,Makara,profesyonel,buyuk
+P018,Flex Kablo 3x1.5mm 100m,SK4,250,Prysmian,Makara,profesyonel,buyuk
+P019,Kablo Kanali 2m,SK4,30,Hager,Adet,profesyonel,buyuk
+P020,Makaron Kablo Seti,SK4,25,Genel,Set,ekonomik,kucuk
+P021,Priz Seti 3li,SK5,65,Viko,Set,ekonomik,kucuk
+P022,Anahtar Seti 3li,SK5,55,Viko,Set,ekonomik,kucuk
+P023,Siva Alti Buat 10lu,SK5,45,Mitsan,Paket,ekonomik,buyuk
+P024,Cerceve Seti 3li,SK5,35,Schneider,Set,ekonomik,kucuk
+P025,USBli Akilli Priz,SK5,150,Legrand,Adet,profesyonel,kucuk
+P026,Sigorta Otomatigi 16A,SK6,45,Legrand,Adet,profesyonel,kucuk
+P027,Sigorta Otomatigi 25A,SK6,55,Legrand,Adet,profesyonel,kucuk
+P028,Kacak Akim Rolesi 25A,SK6,180,Schneider,Adet,profesyonel,kucuk
+P029,Sigorta Kutusu 12li,SK6,120,Hager,Adet,profesyonel,buyuk
+P030,Salter 2x16A,SK6,35,Genel,Adet,ekonomik,kucuk
+P031,Ic Cephe Boyasi 15L,SK7,450,Dyo,Adet,ekonomik,buyuk
+P032,Tavan Boyasi 3.5L,SK7,95,Marshall,Adet,ekonomik,kucuk
+P033,Astar Boya 15L,SK7,280,Betek,Adet,profesyonel,buyuk
+P034,Dis Cephe Boyasi 15L,SK7,520,Dyo,Adet,profesyonel,buyuk
+P035,Boya Rulosu ve Kova Seti,SK7,75,Filli Boya,Set,ekonomik,kucuk
+P036,Yer Seramigi 60x60 m2,SK8,85,Kale,m2,ekonomik,buyuk
+P037,Duvar Karosu 30x60 m2,SK8,65,Vitra,m2,ekonomik,buyuk
+P038,Porselen Karo 80x80 m2,SK8,120,Ege Seramik,m2,profesyonel,buyuk
+P039,Karo Yapistirici 25kg,SK8,120,Weber,Cuval,profesyonel,buyuk
+P040,Derz Dolgusu 5kg,SK8,45,Mapei,Kutu,profesyonel,kucuk
+P041,Sunta Levha 180x210cm,SK9,180,Kastamonu,Adet,ekonomik,buyuk
+P042,MDF Levha 210x280cm,SK9,240,Kastamonu,Adet,ekonomik,buyuk
+P043,Masif Panel Mese 20x120,SK9,350,Genel,Adet,profesyonel,buyuk
+P044,Kereste 5x10cm 3m,SK9,85,Genel,Adet,ekonomik,buyuk
+P045,OSB Levha 18mm 125x245,SK9,220,Kronospan,Adet,profesyonel,buyuk
