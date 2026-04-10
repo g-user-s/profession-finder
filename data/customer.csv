@@ -1,4 +1,4 @@
-customer_id,ad,soyad,yas,cinsiyet,sehir,musteri_segmenti,kayit_tarihi,gercek_etiket
+customer_id,first_name,last_name,age,gender,city,segment,reg_date,label
 C001,Ahmet,Yilmaz,28,E,Antalya,Usta,2019-08-17,klima-ustasi
 C002,Mehmet,Demir,35,E,Izmir,Usta,2020-05-16,klima-ustasi
 C003,Ali,Celik,49,E,Kayseri,Usta,2019-07-29,klima-ustasi

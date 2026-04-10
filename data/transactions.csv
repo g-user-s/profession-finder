@@ -1,4 +1,4 @@
-transaction_id,customer_id,product_id,adet,toplam_tutar,islem_tarihi,islem_saati
+transaction_id,customer_id,product_id,quantity,total_amount,date,hour
 T0009,C001,P001,1,8500,2020-01-09,7
 T0008,C001,P014,2,90,2020-04-20,7
 T0001,C001,P004,1,450,2020-07-06,15

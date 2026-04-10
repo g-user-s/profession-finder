@@ -18,6 +18,7 @@ from sklearn.metrics import (accuracy_score, classification_report,
                              confusion_matrix)
 
 import features   # tek kaynak: ozellik muhendisligi ve model egitimi
+from gemini import kampanya_olustur
 
 warnings.filterwarnings("ignore")
 
@@ -136,9 +137,9 @@ st.markdown("""
 @st.cache_data
 def hazirla():
     # ── Veri + Özellikler + Model ───────────────────────────────────────
-    musteriler, urunler, islemler, ig, kategoriler, subkategoriler = features.veri_yukle()
-    df, ozellik_sutunlari = features.ozellik_matrisi_olustur(musteriler, islemler, ig)
-    le, ro, ka, X, X_tr, X_te, y_tr, y_te, tahmin_df = features.model_egit(df, ozellik_sutunlari)
+    customers, products, transactions, tx, categories, subcategories = features.veri_yukle()
+    df, feature_cols = features.ozellik_matrisi_olustur(customers, transactions, tx)
+    le, ro, ka, X, X_tr, X_te, y_tr, y_te, pred_df = features.model_egit(df, feature_cols)
 
     # ── Metrikler ───────────────────────────────────────────────────────
     y_pred_ro = ro.predict(X_te)
@@ -148,24 +149,24 @@ def hazirla():
     cm    = confusion_matrix(y_te, y_pred_ro)
     rapor = classification_report(y_te, y_pred_ro, target_names=le.classes_,
                                   output_dict=True, zero_division=0)
-    onem  = pd.Series(ro.feature_importances_, index=ozellik_sutunlari)\
+    onem  = pd.Series(ro.feature_importances_, index=feature_cols)\
               .sort_values(ascending=False)
 
-    sonuclar = tahmin_df.merge(
-        musteriler[["customer_id","ad","soyad","sehir","yas","cinsiyet",
-                    "musteri_segmenti"]],
+    results = pred_df.merge(
+        customers[["customer_id", "first_name", "last_name", "city", "age",
+                   "gender", "segment"]],
         on="customer_id"
     )
 
     return dict(
-        musteriler=musteriler, urunler=urunler, islemler=islemler,
-        islemler_genis=ig, kategoriler=kategoriler, subkategoriler=subkategoriler,
-        df=df, ozellik_sutunlari=ozellik_sutunlari,
+        customers=customers, products=products, transactions=transactions,
+        tx=tx, categories=categories, subcategories=subcategories,
+        df=df, feature_cols=feature_cols,
         le=le, ro=ro, ka=ka,
         X=X, X_tr=X_tr, X_te=X_te, y_tr=y_tr, y_te=y_te,
         y_pred_ro=y_pred_ro, y_pred_ka=y_pred_ka,
         dogruluk_ro=dogruluk_ro, dogruluk_ka=dogruluk_ka,
-        cm=cm, rapor=rapor, onem=onem, sonuclar=sonuclar,
+        cm=cm, rapor=rapor, onem=onem, results=results,
     )
 
 
@@ -173,14 +174,13 @@ def hazirla():
 with st.spinner("Model hazırlanıyor..."):
     v = hazirla()
 
-df          = v["df"]
-sonuclar    = v["sonuclar"]
-islemler    = v["islemler"]
-ig          = v["islemler_genis"]
-kategoriler   = v["kategoriler"]
-subkategoriler = v["subkategoriler"]
-le          = v["le"]
-onem        = v["onem"]
+df           = v["df"]
+results      = v["results"]
+transactions = v["transactions"]
+tx           = v["tx"]
+categories   = v["categories"]
+le           = v["le"]
+onem         = v["onem"]
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -189,7 +189,7 @@ onem        = v["onem"]
 st.markdown(f"""
 <div class="header-box">
   <h1>🔧 Yapı Market — Usta Müşteri Tahmin Sistemi</h1>
-  <p>Müşteri alışveriş davranışlarından usta tespiti · {len(v["ozellik_sutunlari"])} özellik · Random Forest sınıflandırması</p>
+  <p>Müşteri alışveriş davranışlarından usta tespiti · {len(v["feature_cols"])} özellik · Random Forest sınıflandırması</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -211,15 +211,15 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
 
     # ── KPI Kartları ───────────────────────────────────────────────────
-    toplam       = len(sonuclar)
-    usta_sayisi  = (sonuclar["tahmin_usta_tipi"] != "bireysel").sum()
+    toplam       = len(results)
+    usta_sayisi  = (results["predicted_type"] != "bireysel").sum()
     bireysel_say = toplam - usta_sayisi
     dogruluk     = v["dogruluk_ro"]
     # Güven skoru yalnızca test müşterileri üzerinden alınır.
     # Eğitim müşterileri modelin daha önce gördüğü verilerdir;
     # onların güven skoru gerçek genellemeyi yansıtmaz.
-    test_sonuclar = sonuclar[sonuclar["split"] == "test"]
-    ort_guven     = test_sonuclar["guven_skoru"].mean()
+    test_results = results[results["split"] == "test"]
+    ort_guven    = test_results["confidence"].mean()
 
     c1, c2, c3, c4, c5 = st.columns(5)
     kpiler = [
@@ -227,7 +227,7 @@ with tab1:
         (c2, "Tahmin Edilen Usta",   f"{usta_sayisi}",        "#27ae60", f"toplam {toplam} içinden"),
         (c3, "Bireysel Müşteri",     f"{bireysel_say}",       "#e67e22", "usta olmayan segment"),
         (c4, "Model Doğruluğu",      f"%{dogruluk*100:.0f}",  "#8e44ad", "Random Forest (test seti)"),
-        (c5, "Ort. Güven Skoru",     f"%{ort_guven*100:.0f}", "#16a085", f"test seti ({len(test_sonuclar)} müşteri)"),
+        (c5, "Ort. Güven Skoru",     f"%{ort_guven*100:.0f}", "#16a085", f"test seti ({len(test_results)} müşteri)"),
     ]
     for col, baslik, deger, renk, alt in kpiler:
         with col:
@@ -245,7 +245,7 @@ with tab1:
 
     with col_sol:
         st.markdown('<p class="section-title">Tahmin Edilen Usta Tipi Dağılımı</p>', unsafe_allow_html=True)
-        tip_sayilari = sonuclar["tahmin_usta_tipi"].value_counts().reset_index()
+        tip_sayilari = results["predicted_type"].value_counts().reset_index()
         tip_sayilari.columns = ["usta_tipi","sayi"]
         tip_sayilari["emoji"] = tip_sayilari["usta_tipi"].map(USTA_EMOJILERI)
         tip_sayilari["etiket"] = tip_sayilari["emoji"] + " " + tip_sayilari["usta_tipi"]
@@ -264,14 +264,14 @@ with tab1:
 
     with col_sag:
         st.markdown('<p class="section-title">Kategoriye Göre Toplam Satış (TL)</p>', unsafe_allow_html=True)
-        kat_harcama = ig.groupby("kategori_id")["toplam_tutar"].sum().reset_index()
-        kat_harcama = kat_harcama.merge(kategoriler[["kategori_id","kategori_adi"]], on="kategori_id")
-        kat_harcama = kat_harcama.sort_values("toplam_tutar", ascending=True)
+        kat_harcama = tx.groupby("cat_id")["total_amount"].sum().reset_index()
+        kat_harcama = kat_harcama.merge(categories[["cat_id", "cat_name"]], on="cat_id")
+        kat_harcama = kat_harcama.sort_values("total_amount", ascending=True)
         fig_bar = px.bar(
-            kat_harcama, x="toplam_tutar", y="kategori_adi",
+            kat_harcama, x="total_amount", y="cat_name",
             orientation="h",
-            text=kat_harcama["toplam_tutar"].apply(lambda x: f"{x:,.0f} ₺"),
-            color="toplam_tutar", color_continuous_scale="Blues",
+            text=kat_harcama["total_amount"].apply(lambda x: f"{x:,.0f} ₺"),
+            color="total_amount", color_continuous_scale="Blues",
         )
         fig_bar.update_traces(textposition="outside")
         fig_bar.update_layout(
@@ -287,9 +287,9 @@ with tab1:
 
     with col3:
         st.markdown('<p class="section-title">Şehire Göre Müşteri Dağılımı</p>', unsafe_allow_html=True)
-        sehir_df = sonuclar.groupby(["sehir","tahmin_usta_tipi"]).size().reset_index(name="sayi")
+        sehir_df = results.groupby(["city", "predicted_type"]).size().reset_index(name="sayi")
         fig_sehir = px.bar(
-            sehir_df, x="sehir", y="sayi", color="tahmin_usta_tipi",
+            sehir_df, x="city", y="sayi", color="predicted_type",
             color_discrete_map=RENKLER, barmode="stack",
         )
         fig_sehir.update_layout(
@@ -302,20 +302,20 @@ with tab1:
 
     with col4:
         st.markdown('<p class="section-title">Usta vs Bireysel — Alışveriş Davranışı</p>', unsafe_allow_html=True)
-        sonuclar_m = sonuclar.merge(
-            df[["customer_id","toplam_harcama","islem_sayisi",
-                "toplu_alim_orani","sabah_alisveris_orani"]],
+        results_m = results.merge(
+            df[["customer_id", "total_spend", "transaction_count",
+                "bulk_rate", "morning_rate"]],
             on="customer_id"
         )
-        karsilastirma = sonuclar_m.copy()
-        karsilastirma["segment"] = karsilastirma["tahmin_usta_tipi"].apply(
+        karsilastirma = results_m.copy()
+        karsilastirma["segment"] = karsilastirma["predicted_type"].apply(
             lambda x: "Usta" if x != "bireysel" else "Bireysel"
         )
         seg = karsilastirma.groupby("segment").agg(
-            Ort_Harcama   =("toplam_harcama","mean"),
-            Ort_Islem     =("islem_sayisi","mean"),
-            Toplu_Alim    =("toplu_alim_orani","mean"),
-            Sabah_Alisveris=("sabah_alisveris_orani","mean"),
+            Ort_Harcama    =("total_spend",        "mean"),
+            Ort_Islem      =("transaction_count",  "mean"),
+            Toplu_Alim     =("bulk_rate",          "mean"),
+            Sabah_Alisveris=("morning_rate",        "mean"),
         ).round(2).T.reset_index()
         seg.columns = ["Özellik","Bireysel","Usta"]
         fig_seg = go.Figure()
@@ -344,19 +344,19 @@ with tab2:
 
         # Filtreler
         tip_filtre = st.multiselect(
-            "Usta Tipi", options=sorted(sonuclar["tahmin_usta_tipi"].unique()),
-            default=sorted(sonuclar["tahmin_usta_tipi"].unique())
+            "Usta Tipi", options=sorted(results["predicted_type"].unique()),
+            default=sorted(results["predicted_type"].unique())
         )
         sehir_filtre = st.multiselect(
-            "Şehir", options=sorted(sonuclar["sehir"].unique()),
-            default=sorted(sonuclar["sehir"].unique())
+            "Şehir", options=sorted(results["city"].unique()),
+            default=sorted(results["city"].unique())
         )
         guven_min = st.slider("Min. Güven Skoru", 0.0, 1.0, 0.0, 0.05)
 
-        filtreli = sonuclar[
-            sonuclar["tahmin_usta_tipi"].isin(tip_filtre) &
-            sonuclar["sehir"].isin(sehir_filtre) &
-            (sonuclar["guven_skoru"] >= guven_min)
+        filtreli = results[
+            results["predicted_type"].isin(tip_filtre) &
+            results["city"].isin(sehir_filtre) &
+            (results["confidence"] >= guven_min)
         ]
 
         if filtreli.empty:
@@ -364,7 +364,7 @@ with tab2:
             secilen_id = None
         else:
             secenekler = [
-                f"{r.customer_id} — {r.ad} {r.soyad}"
+                f"{r.customer_id} — {r.first_name} {r.last_name}"
                 for _, r in filtreli.iterrows()
             ]
             secim = st.selectbox("Detay için müşteri seç", secenekler)
@@ -372,11 +372,11 @@ with tab2:
 
     with sag:
         if secilen_id:
-            musteri_row = sonuclar[sonuclar["customer_id"] == secilen_id].iloc[0]
+            musteri_row = results[results["customer_id"] == secilen_id].iloc[0]
             musteri_df  = df[df["customer_id"] == secilen_id].iloc[0]
 
             # Başlık
-            tip  = musteri_row["tahmin_usta_tipi"]
+            tip  = musteri_row["predicted_type"]
             renk = RENKLER.get(tip, "#888")
             emj  = USTA_EMOJILERI.get(tip, "❓")
 
@@ -384,51 +384,51 @@ with tab2:
             <div style="background:white;border-radius:10px;padding:1.2rem 1.5rem;
                         box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-bottom:1rem;">
               <h3 style="margin:0;color:#1e3a5f">
-                {musteri_row['ad']} {musteri_row['soyad']}
+                {musteri_row['first_name']} {musteri_row['last_name']}
                 &nbsp;<span class="usta-badge" style="background:{renk}">{emj} {tip}</span>
               </h3>
               <p style="color:#888;margin:0.3rem 0 0 0;font-size:0.85rem">
-                {musteri_row['sehir']} · {musteri_row['yas']} yaş ·
-                Güven: <b style="color:{renk}">{musteri_row['guven_skoru']*100:.0f}%</b>
+                {musteri_row['city']} · {musteri_row['age']} yaş ·
+                Güven: <b style="color:{renk}">{musteri_row['confidence']*100:.0f}%</b>
               </p>
             </div>
             """, unsafe_allow_html=True)
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("İşlem Sayısı",   int(musteri_df["islem_sayisi"]))
-            m2.metric("Toplam Harcama", f"{musteri_df['toplam_harcama']:,.0f} ₺")
-            m3.metric("Toplu Alım",     f"%{musteri_df['toplu_alim_orani']*100:.0f}")
-            m4.metric("Sabah Alışveriş",f"%{musteri_df['sabah_alisveris_orani']*100:.0f}")
+            m1.metric("İşlem Sayısı",   int(musteri_df["transaction_count"]))
+            m2.metric("Toplam Harcama", f"{musteri_df['total_spend']:,.0f} ₺")
+            m3.metric("Toplu Alım",     f"%{musteri_df['bulk_rate']*100:.0f}")
+            m4.metric("Sabah Alışveriş",f"%{musteri_df['morning_rate']*100:.0f}")
 
             # ── Radar Grafik ──────────────────────────────────────────
             radar_kategoriler = ["Klima","Kombi","Radyatör",
                                   "Kablo","Priz","Sigorta",
                                   "Boya","Seramik","Ahşap","Uzmanlık"]
             radar_degerler = [
-                musteri_df.get("klima_orani",0),
-                musteri_df.get("kombi_orani",0),
-                musteri_df.get("radyator_orani",0),
-                musteri_df.get("kablo_orani",0),
-                musteri_df.get("priz_orani",0),
-                musteri_df.get("sigorta_orani",0),
-                musteri_df.get("boya_orani",0),
-                musteri_df.get("seramik_orani",0),
-                musteri_df.get("ahsap_orani",0),
-                musteri_df.get("uzmanlik_skoru",0),
+                musteri_df.get("klima_ratio",0),
+                musteri_df.get("kombi_ratio",0),
+                musteri_df.get("radyator_ratio",0),
+                musteri_df.get("kablo_ratio",0),
+                musteri_df.get("priz_ratio",0),
+                musteri_df.get("sigorta_ratio",0),
+                musteri_df.get("boya_ratio",0),
+                musteri_df.get("seramik_ratio",0),
+                musteri_df.get("ahsap_ratio",0),
+                musteri_df.get("expertise_score",0),
             ]
             # Aynı tip müşterilerin ortalamasını da ekle
-            ayni_tip = df[df["gercek_etiket"] == musteri_row["gercek_etiket"]]
+            ayni_tip = df[df["label"] == musteri_row["label"]]
             ort_degerler = [
-                ayni_tip["klima_orani"].mean(),
-                ayni_tip["kombi_orani"].mean(),
-                ayni_tip["radyator_orani"].mean(),
-                ayni_tip["kablo_orani"].mean(),
-                ayni_tip["priz_orani"].mean(),
-                ayni_tip["sigorta_orani"].mean(),
-                ayni_tip["boya_orani"].mean(),
-                ayni_tip["seramik_orani"].mean(),
-                ayni_tip["ahsap_orani"].mean(),
-                ayni_tip["uzmanlik_skoru"].mean(),
+                ayni_tip["klima_ratio"].mean(),
+                ayni_tip["kombi_ratio"].mean(),
+                ayni_tip["radyator_ratio"].mean(),
+                ayni_tip["kablo_ratio"].mean(),
+                ayni_tip["priz_ratio"].mean(),
+                ayni_tip["sigorta_ratio"].mean(),
+                ayni_tip["boya_ratio"].mean(),
+                ayni_tip["seramik_ratio"].mean(),
+                ayni_tip["ahsap_ratio"].mean(),
+                ayni_tip["expertise_score"].mean(),
             ]
 
             fig_radar = go.Figure()
@@ -457,13 +457,13 @@ with tab2:
 
             # ── Bu Müşterinin İşlem Geçmişi ──────────────────────────
             st.markdown('<p class="section-title">Alışveriş Geçmişi</p>', unsafe_allow_html=True)
-            musteri_islemler = ig[ig["customer_id"] == secilen_id].merge(
-                v["urunler"][["product_id","urun_adi"]], on="product_id"
-            ).merge(kategoriler[["kategori_id","kategori_adi"]], on="kategori_id")
+            musteri_islemler = tx[tx["customer_id"] == secilen_id].merge(
+                v["products"][["product_id", "product_name"]], on="product_id"
+            ).merge(categories[["cat_id", "cat_name"]], on="cat_id")
             goster = musteri_islemler[
-                ["islem_tarihi","urun_adi","kategori_adi","adet","toplam_tutar"]
-            ].sort_values("islem_tarihi", ascending=False)
-            goster.columns = ["Tarih","Ürün","Kategori","Adet","Tutar (₺)"]
+                ["date", "product_name", "cat_name", "quantity", "total_amount"]
+            ].sort_values("date", ascending=False)
+            goster.columns = ["Tarih", "Ürün", "Kategori", "Adet", "Tutar (₺)"]
             st.dataframe(goster, use_container_width=True, height=200)
 
     st.divider()
@@ -471,10 +471,10 @@ with tab2:
     # ── Alt tablo: Tüm Müşteriler ───────────────────────────────────────
     st.markdown('<p class="section-title">Tüm Tahmin Sonuçları</p>', unsafe_allow_html=True)
 
-    tablo = filtreli[["customer_id","ad","soyad","sehir","yas",
-                       "tahmin_usta_tipi","guven_skoru","gercek_etiket","dogru_mu"]].copy()
-    tablo.columns = ["ID","Ad","Soyad","Şehir","Yaş",
-                     "Tahmin","Güven","Gerçek","✓"]
+    tablo = filtreli[["customer_id", "first_name", "last_name", "city", "age",
+                       "predicted_type", "confidence", "label", "correct"]].copy()
+    tablo.columns = ["ID", "Ad", "Soyad", "Şehir", "Yaş",
+                     "Tahmin", "Güven", "Gerçek", "✓"]
 
     def renk_satir(row):
         if row["✓"] == True:
@@ -489,7 +489,7 @@ with tab2:
 
     st.dataframe(tablo_styled, use_container_width=True, height=380)
 
-    dogru_sayi  = filtreli["dogru_mu"].sum()
+    dogru_sayi  = filtreli["correct"].sum()
     yanlis_sayi = len(filtreli) - dogru_sayi
     st.markdown(
         f'<div class="info-box">Gösterilen <b>{len(filtreli)}</b> müşteriden '
@@ -587,7 +587,7 @@ with tab3:
     )
 
     X_all = v["X"]
-    y_all = le.transform(df["gercek_etiket"])
+    y_all = le.transform(df["label"])
     # learning_curve: veriyi karıştırır (shuffle=True), stratified K-Fold uygular.
     # X_all[:n] prefix dilimleme yerine her eğitim boyutunda rastgele örnekleme yapar.
     train_sizes = np.linspace(0.4, 1.0, 7)
@@ -650,9 +650,9 @@ with tab4:
         onem_df = onem_df.sort_values("skor")
 
         def ozellik_rengi(ad):
-            if ad.startswith("subkat_"):   return "#e74c3c"   # kirmizi = alt kategori
-            if ad.startswith("harcama_K"): return "#95a5a6"   # gri = ana kategori
-            return "#2980b9"                                   # mavi = diger
+            if ad.startswith("subcat_"):  return "#e74c3c"   # kirmizi = alt kategori
+            if ad.startswith("spend_K"):  return "#95a5a6"   # gri = ana kategori
+            return "#2980b9"                                  # mavi = diger
 
         renkler_onem = [ozellik_rengi(o) for o in onem_df["ozellik"]]
 
@@ -679,22 +679,22 @@ with tab4:
             '<div class="info-box">Her satır bir usta tipi, her sütun bir kategori oranıdır. '
             'Koyu renk = o usta tipi o kategoriye yoğunlaşmış.</div>', unsafe_allow_html=True
         )
-        oran_cols = ["klima_orani","kombi_orani","radyator_orani",
-                     "kablo_orani","priz_orani","sigorta_orani",
-                     "boya_orani","seramik_orani","ahsap_orani","uzmanlik_skoru"]
+        oran_cols = ["klima_ratio","kombi_ratio","radyator_ratio",
+                     "kablo_ratio","priz_ratio","sigorta_ratio",
+                     "boya_ratio","seramik_ratio","ahsap_ratio","expertise_score"]
         oran_map  = {
-            "klima_orani"   :"Klima",
-            "kombi_orani"   :"Kombi",
-            "radyator_orani":"Radyatör",
-            "kablo_orani"   :"Kablo",
-            "priz_orani"    :"Priz",
-            "sigorta_orani" :"Sigorta",
-            "boya_orani"    :"Boya",
-            "seramik_orani" :"Seramik",
-            "ahsap_orani"   :"Ahşap",
-            "uzmanlik_skoru":"Uzmanlık",
+            "klima_ratio"    :"Klima",
+            "kombi_ratio"    :"Kombi",
+            "radyator_ratio" :"Radyatör",
+            "kablo_ratio"    :"Kablo",
+            "priz_ratio"     :"Priz",
+            "sigorta_ratio"  :"Sigorta",
+            "boya_ratio"     :"Boya",
+            "seramik_ratio"  :"Seramik",
+            "ahsap_ratio"    :"Ahşap",
+            "expertise_score":"Uzmanlık",
         }
-        isi = df.groupby("gercek_etiket")[oran_cols].mean().round(2)
+        isi = df.groupby("label")[oran_cols].mean().round(2)
         isi.columns = [oran_map[c] for c in oran_cols]
         isi.index = [USTA_EMOJILERI.get(i,"")+" "+i for i in isi.index]
 
@@ -712,23 +712,23 @@ with tab4:
     # ── Zaman ve Davranış Özellikleri ──────────────────────────────────
     st.markdown('<p class="section-title">Davranışsal Özellikler — Usta Tipine Göre</p>', unsafe_allow_html=True)
 
-    dav_cols = ["sabah_alisveris_orani","haftaici_alisveris_orani",
-                "toplu_alim_orani","profesyonel_marka_orani",
-                "buyuk_ambalaj_orani","duzenlilik_skoru"]
+    dav_cols = ["morning_rate", "weekday_rate",
+                "bulk_rate", "pro_brand_rate",
+                "large_package_rate", "regularity_score"]
     dav_isimleri = {
-        "sabah_alisveris_orani"      :"Sabah Alışveriş",
-        "haftaici_alisveris_orani"   :"Hafta İçi",
-        "toplu_alim_orani"           :"Toplu Alım",
-        "profesyonel_marka_orani"    :"Pro Marka",
-        "buyuk_ambalaj_orani"        :"Büyük Ambalaj",
-        "duzenlilik_skoru"           :"Düzenlilik (düş. = iyi)",
+        "morning_rate"       :"Sabah Alışveriş",
+        "weekday_rate"       :"Hafta İçi",
+        "bulk_rate"          :"Toplu Alım",
+        "pro_brand_rate"     :"Pro Marka",
+        "large_package_rate" :"Büyük Ambalaj",
+        "regularity_score"   :"Düzenlilik (düş. = iyi)",
     }
-    dav_df = df.groupby("gercek_etiket")[dav_cols].mean().round(3)
+    dav_df = df.groupby("label")[dav_cols].mean().round(3)
     dav_df.columns = [dav_isimleri[c] for c in dav_cols]
     dav_melt = dav_df.reset_index().melt(
-        id_vars="gercek_etiket", var_name="Özellik", value_name="Değer"
+        id_vars="label", var_name="Özellik", value_name="Değer"
     )
-    dav_melt["Emoji+Tip"] = dav_melt["gercek_etiket"].apply(
+    dav_melt["Emoji+Tip"] = dav_melt["label"].apply(
         lambda x: USTA_EMOJILERI.get(x,"")+" "+x
     )
 
@@ -752,22 +752,22 @@ with tab4:
         'Sağ üst köşe = hem uzmanlaşmış hem toplu alan → güçlü usta sinyali.</div>',
         unsafe_allow_html=True
     )
-    scatter_df = df[["customer_id","uzmanlik_skoru","toplu_alim_orani","gercek_etiket"]].merge(
-        sonuclar[["customer_id","ad","soyad","guven_skoru"]], on="customer_id"
+    scatter_df = df[["customer_id", "expertise_score", "bulk_rate", "label"]].merge(
+        results[["customer_id", "first_name", "last_name", "confidence"]], on="customer_id"
     )
-    scatter_df["isim"] = scatter_df["ad"] + " " + scatter_df["soyad"]
-    scatter_df["emoji"] = scatter_df["gercek_etiket"].map(USTA_EMOJILERI)
+    scatter_df["isim"]  = scatter_df["first_name"] + " " + scatter_df["last_name"]
+    scatter_df["emoji"] = scatter_df["label"].map(USTA_EMOJILERI)
 
     fig_sc = px.scatter(
-        scatter_df, x="uzmanlik_skoru", y="toplu_alim_orani",
-        color="gercek_etiket", color_discrete_map=RENKLER,
-        size="guven_skoru", size_max=20,
-        hover_data={"isim":True,"gercek_etiket":True,
-                    "guven_skoru":":.0%","uzmanlik_skoru":":.2f","toplu_alim_orani":":.2f"},
-        labels={"uzmanlik_skoru":"Uzmanlık Skoru",
-                "toplu_alim_orani":"Toplu Alım Oranı",
-                "gercek_etiket":"Usta Tipi"},
-        symbol="gercek_etiket",
+        scatter_df, x="expertise_score", y="bulk_rate",
+        color="label", color_discrete_map=RENKLER,
+        size="confidence", size_max=20,
+        hover_data={"isim":True,"label":True,
+                    "confidence":":.0%","expertise_score":":.2f","bulk_rate":":.2f"},
+        labels={"expertise_score":"Uzmanlık Skoru",
+                "bulk_rate":"Toplu Alım Oranı",
+                "label":"Usta Tipi"},
+        symbol="label",
     )
     fig_sc.update_layout(
         height=350, legend=dict(orientation="h", y=1.1, font_size=10),
@@ -777,9 +777,9 @@ with tab4:
     st.plotly_chart(fig_sc, use_container_width=True)
 
 # ── Alt Bilgi ──────────────────────────────────────────────────────────────
-n_musteri = len(v["musteriler"])
-n_islem   = len(v["islemler"])
-n_ozellik = len(v["ozellik_sutunlari"])
+n_musteri = len(v["customers"])
+n_islem   = len(v["transactions"])
+n_ozellik = len(v["feature_cols"])
 st.markdown(f"""
 <div style="text-align:center;color:#bbb;font-size:0.8rem;margin-top:2rem;padding:1rem;
             border-top:1px solid #eee;">

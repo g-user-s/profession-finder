@@ -1,4 +1,4 @@
-product_id,urun_adi,subkategori_id,fiyat,marka,birim,marka_tipi,ambalaj_tipi
+product_id,product_name,subcat_id,price,brand,unit,brand_type,package_type
 P001,Split Klima 9000 BTU,SK1,8500,Daikin,Adet,profesyonel,buyuk
 P002,Split Klima 12000 BTU,SK1,11000,Mitsubishi,Adet,profesyonel,buyuk
 P003,Split Klima 18000 BTU,SK1,15000,Daikin,Adet,profesyonel,buyuk

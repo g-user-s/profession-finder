@@ -1,4 +1,4 @@
-subkategori_id,subkategori_slug,subkategori_adi,kategori_id
+subcat_id,slug,subcat_name,cat_id
 SK1,klima,Klima,K1
 SK2,kombi,Kombi,K1
 SK3,radyatorler,Radyatörler,K1
