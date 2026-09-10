@@ -52,6 +52,14 @@
     }).format(date);
   }
 
+  function formatFlightTimes(result) {
+    if (!result.departureTime) return null;
+    if (!result.arrivalTime) return result.departureTime;
+    return (
+      result.departureTime + " → " + result.arrivalTime + (result.arrivesNextDay ? " +1" : "")
+    );
+  }
+
   function buildFlightLine(result) {
     var wrapper = document.createElement("div");
 
@@ -60,6 +68,13 @@
     routeStrong.textContent = result.origin + " → " + result.destination;
     routeLine.appendChild(routeStrong);
     routeLine.appendChild(document.createTextNode(" · " + formatDate(result.departureDate)));
+    var times = formatFlightTimes(result);
+    if (times) {
+      routeLine.appendChild(document.createTextNode(" · "));
+      var timeStrong = document.createElement("strong");
+      timeStrong.textContent = times;
+      routeLine.appendChild(timeStrong);
+    }
     wrapper.appendChild(routeLine);
 
     var detailLine = document.createElement("p");

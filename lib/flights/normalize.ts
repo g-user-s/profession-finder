@@ -75,6 +75,35 @@ function readDurationLabel(minutes: number): string {
   return `${hours}s ${remaining}dk`;
 }
 
+function pad(value: number): string {
+  return String(Math.max(0, value)).padStart(2, "0");
+}
+
+/**
+ * Google stores clock times as [hour, minute], dropping the minute when
+ * it's zero. These are local wall-clock times at each airport, so they're
+ * read as digits and never routed through a Date — parsing them into one
+ * would invite a timezone shift onto a value that already means what it
+ * says.
+ */
+function readClockTime(timeParts: unknown): string | undefined {
+  if (!Array.isArray(timeParts)) return undefined;
+  const hour = timeParts[0];
+  if (typeof hour !== "number") return undefined;
+  const minute = typeof timeParts[1] === "number" ? timeParts[1] : 0;
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+/** [year, month, day] → a comparable number, for spotting overnight arrivals. */
+function readDateOrdinal(dateParts: unknown): number | undefined {
+  if (!Array.isArray(dateParts)) return undefined;
+  const [year, month, day] = dateParts;
+  if (typeof year !== "number" || typeof month !== "number" || typeof day !== "number") {
+    return undefined;
+  }
+  return Date.UTC(year, month - 1, day);
+}
+
 /**
  * `data[2]` and `data[3]` are Google's "best flights" and "other flights"
  * buckets; each entry's `route` (index 0) carries legs at index 2, and
@@ -108,10 +137,19 @@ export function parseGoogleFlightsPageData(
     if (!Array.isArray(legs) || typeof price !== "number") continue;
 
     const firstLeg = legs[0];
-    if (!Array.isArray(firstLeg)) continue;
+    const lastLeg = legs[legs.length - 1];
+    if (!Array.isArray(firstLeg) || !Array.isArray(lastLeg)) continue;
 
     const airlineName = firstLeg[22]?.[3];
     const durationMinutes = route[9];
+
+    // Leg times: [8] departure clock, [10] arrival clock, [20]/[21] their
+    // dates. Departure comes from the first leg and arrival from the last,
+    // so a connecting itinerary reports the journey's real endpoints.
+    const departureDay = readDateOrdinal(firstLeg[20]);
+    const arrivalDay = readDateOrdinal(lastLeg[21]);
+    const arrivesNextDay =
+      departureDay !== undefined && arrivalDay !== undefined && arrivalDay > departureDay;
 
     options.push({
       price,
@@ -119,6 +157,9 @@ export function parseGoogleFlightsPageData(
       airline: typeof airlineName === "string" ? airlineName : undefined,
       stops: legs.length - 1,
       durationMinutes: typeof durationMinutes === "number" ? durationMinutes : undefined,
+      departureTime: readClockTime(firstLeg[8]),
+      arrivalTime: readClockTime(lastLeg[10]),
+      arrivesNextDay,
       bookingUrl: undefined
     });
   }

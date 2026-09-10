@@ -16,6 +16,11 @@ export type RawFlightOption = {
   airline?: string;
   stops?: number;
   durationMinutes?: number;
+  /** Local wall-clock time at the origin airport, "HH:MM". */
+  departureTime?: string;
+  /** Local wall-clock time at the destination airport, "HH:MM". */
+  arrivalTime?: string;
+  arrivesNextDay?: boolean;
   bookingUrl?: string;
 };
 

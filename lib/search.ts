@@ -168,6 +168,9 @@ async function fetchCheapestForAirportPair(
       typeof cheapest.durationMinutes === "number"
         ? readDurationLabel(cheapest.durationMinutes)
         : undefined,
+    departureTime: cheapest.departureTime,
+    arrivalTime: cheapest.arrivalTime,
+    arrivesNextDay: cheapest.arrivesNextDay,
     bookingUrl: cheapest.bookingUrl
   };
 }

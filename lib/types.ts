@@ -18,6 +18,10 @@ export type FlightResult = {
   airline?: string;
   stops?: number;
   duration?: string;
+  /** Local wall-clock times at each airport, "HH:MM". */
+  departureTime?: string;
+  arrivalTime?: string;
+  arrivesNextDay?: boolean;
   bookingUrl?: string;
 };
 

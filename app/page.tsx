@@ -31,9 +31,21 @@ function formatDate(dateStr: string): string {
   }).format(date);
 }
 
+/** "08:35 → 11:25" — with "+1" when the flight lands the next day. */
+function formatFlightTimes(result: {
+  departureTime?: string;
+  arrivalTime?: string;
+  arrivesNextDay?: boolean;
+}): string | null {
+  if (!result.departureTime) return null;
+  if (!result.arrivalTime) return result.departureTime;
+  return `${result.departureTime} → ${result.arrivalTime}${result.arrivesNextDay ? " +1" : ""}`;
+}
+
 function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
   const { cheapest } = snapshot;
   const image = getDestinationImage(snapshot.city);
+  const timeLabel = formatFlightTimes(cheapest);
   const detailParts: string[] = [];
   if (cheapest.airline) detailParts.push(cheapest.airline);
   if (typeof cheapest.stops === "number") {
@@ -70,6 +82,8 @@ function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
       <p className="deal-card__route">
         {cheapest.origin} → {cheapest.destination} · {formatDate(cheapest.departureDate)}
       </p>
+
+      {timeLabel && <p className="deal-card__times">{timeLabel}</p>}
 
       <p className="deal-card__price">
         {snapshot.baseline !== null && (
