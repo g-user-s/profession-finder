@@ -18,18 +18,22 @@ const GENERIC_ERROR =
   "Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin.";
 
 export type SearchInput = {
-  city: string | "all";
+  /** One city, a specific set of them, or every destination. */
+  city: string | string[] | "all";
   dateOption: DateOption;
 };
+
+function selectDestinations(city: SearchInput["city"]): Destination[] {
+  if (city === "all") return destinations;
+  const wanted = new Set(Array.isArray(city) ? city : [city]);
+  return destinations.filter((destination) => wanted.has(destination.city));
+}
 
 export async function searchCheapestFlights(
   input: SearchInput
 ): Promise<DestinationSearchOutcome[]> {
   const { fromDate, toDate } = resolveDateRange(input.dateOption);
-  const targetDestinations =
-    input.city === "all"
-      ? destinations
-      : destinations.filter((destination) => destination.city === input.city);
+  const targetDestinations = selectDestinations(input.city);
 
   const provider = getFlightProvider();
   const pairs = targetDestinations.flatMap((destination) =>

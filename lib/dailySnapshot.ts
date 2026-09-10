@@ -109,6 +109,35 @@ export async function recordDailySnapshotSafely(
   }
 }
 
+/**
+ * Claims the right to retry the destinations missing from today's
+ * snapshot, at most once per cooldown window.
+ *
+ * Without this, every visitor would trigger a fresh live search for as
+ * long as a destination stays unavailable — slow for them, and the exact
+ * burst of Google requests that causes the throttling in the first place.
+ * SET NX makes the claim atomic, so a burst of simultaneous requests
+ * produces one retry rather than a stampede.
+ *
+ * Returns true when no store is configured: there's nothing to
+ * coordinate, and that setup already searches live on every request.
+ */
+export async function claimTopUpSlot(date: string, cooldownSeconds: number): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return true;
+
+  try {
+    const claimed = await redis.set(`daily:topup:${date}`, Date.now(), {
+      nx: true,
+      ex: cooldownSeconds
+    });
+    return claimed === "OK";
+  } catch (error) {
+    console.error("Failed to claim top-up slot:", error);
+    return false;
+  }
+}
+
 export async function getLatestSnapshot(city: string): Promise<DailyDestinationSnapshot | null> {
   const redis = getRedis();
   if (!redis) return null;

@@ -15,7 +15,7 @@ export const maxDuration = 60;
  */
 export async function GET() {
   const credentials = getRedisCredentials();
-  const { snapshots, date, source, missing } = await getDailyTop();
+  const { snapshots, date, source, toppedUp, missing } = await getDailyTop();
 
   return jsonResponse({
     date,
@@ -24,6 +24,7 @@ export async function GET() {
       configured: credentials !== null,
       envVarStyle: credentials?.source ?? null
     },
+    toppedUp,
     missing,
     snapshots
   });
