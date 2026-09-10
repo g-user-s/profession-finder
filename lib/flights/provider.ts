@@ -19,6 +19,25 @@ export type RawFlightOption = {
   bookingUrl?: string;
 };
 
+export type DatePriceRangeParams = {
+  origin: string;
+  destination: string;
+  fromDate: string; // YYYY-MM-DD
+  toDate: string; // YYYY-MM-DD
+};
+
+export type DatePrice = {
+  date: string;
+  price: number;
+  currency: string;
+};
+
 export interface FlightProvider {
   searchOneWay(params: FlightSearchParams): Promise<RawFlightOption[]>;
+  /**
+   * Cheapest price per date across a range, from as few requests as the
+   * provider needs (ideally one). Used to find which single date is worth
+   * an exact-flight lookup, instead of querying every candidate date.
+   */
+  searchDatePriceRange(params: DatePriceRangeParams): Promise<DatePrice[]>;
 }

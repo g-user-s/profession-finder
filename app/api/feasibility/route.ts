@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const page = await fetchGoogleFlightsPage(url);
     const data = extractGoogleFlightsPageData(page.html);
     const diagnostics = diagnosePageData(data);
-    const options = data ? parseGoogleFlightsPageData(data) : [];
+    const options = data ? parseGoogleFlightsPageData(data, curr) : [];
 
     return NextResponse.json({
       ok: page.status === 200 && options.length > 0,

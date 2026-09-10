@@ -83,7 +83,8 @@ function readDurationLabel(minutes: number): string {
  * timestamps, duration) live at fixed indices Google does not document.
  */
 export function parseGoogleFlightsPageData(
-  data: unknown[]
+  data: unknown[],
+  currency: string
 ): RawFlightOption[] {
   const rawFlights: unknown[] = [];
   for (const index of [2, 3]) {
@@ -114,7 +115,7 @@ export function parseGoogleFlightsPageData(
 
     options.push({
       price,
-      currency: "USD",
+      currency,
       airline: typeof airlineName === "string" ? airlineName : undefined,
       stops: legs.length - 1,
       durationMinutes: typeof durationMinutes === "number" ? durationMinutes : undefined,
@@ -125,12 +126,50 @@ export function parseGoogleFlightsPageData(
   return options;
 }
 
+/**
+ * Google's search page embeds a price-by-date graph (the same one behind
+ * its UI's price graph tab) at data[5][10][0], as
+ * [timestampMs, price][]. Reading it lets us learn the cheapest date across
+ * a whole range from ONE page fetch instead of one fetch per candidate
+ * date — the "efficient query method" the product spec asks for.
+ */
+export function parseGoogleFlightsPageDatePrices(
+  data: unknown[],
+  fromDate: string,
+  toDate: string
+): Array<{ date: string; price: number }> {
+  const datePriceSection = data[5];
+  const graph =
+    Array.isArray(datePriceSection) && Array.isArray(datePriceSection[10])
+      ? datePriceSection[10][0]
+      : null;
+  if (!Array.isArray(graph)) {
+    return [];
+  }
+
+  return graph
+    .map((entry): { date: string; price: number } | null => {
+      if (!Array.isArray(entry) || typeof entry[0] !== "number") {
+        return null;
+      }
+      const date = new Date(entry[0]).toISOString().slice(0, 10);
+      const price = entry[1];
+      if (date < fromDate || date > toDate || typeof price !== "number" || !Number.isFinite(price)) {
+        return null;
+      }
+      return { date, price };
+    })
+    .filter((entry): entry is { date: string; price: number } => entry !== null)
+    .sort((left, right) => left.date.localeCompare(right.date));
+}
+
 export type PageDataDiagnostics = {
   dataFound: boolean;
   topLevelLength: number | null;
   bucket2Length: number | null;
   bucket3Length: number | null;
   rawFlightEntryCount: number;
+  datePriceGraphEntryCount: number;
 };
 
 /**
@@ -145,7 +184,8 @@ export function diagnosePageData(data: unknown[] | null): PageDataDiagnostics {
       topLevelLength: null,
       bucket2Length: null,
       bucket3Length: null,
-      rawFlightEntryCount: 0
+      rawFlightEntryCount: 0,
+      datePriceGraphEntryCount: 0
     };
   }
 
@@ -158,12 +198,19 @@ export function diagnosePageData(data: unknown[] | null): PageDataDiagnostics {
     }
   }
 
+  const datePriceSection = data[5];
+  const graph =
+    Array.isArray(datePriceSection) && Array.isArray(datePriceSection[10])
+      ? datePriceSection[10][0]
+      : null;
+
   return {
     dataFound: true,
     topLevelLength: data.length,
     bucket2Length: Array.isArray(bucket2) ? bucket2.length : null,
     bucket3Length: Array.isArray(bucket3) ? bucket3.length : null,
-    rawFlightEntryCount
+    rawFlightEntryCount,
+    datePriceGraphEntryCount: Array.isArray(graph) ? graph.length : 0
   };
 }
 
