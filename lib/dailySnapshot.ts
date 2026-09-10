@@ -1,13 +1,21 @@
-import { Redis } from "@upstash/redis";
 import { compareToHistory, MAX_HISTORY_SAMPLES } from "./pricing";
+import { getRedis } from "./redis";
 import type { FlightResult } from "./types";
 
-/**
- * Redis.fromEnv() reads UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN,
- * which the "Upstash for Redis" integration (Vercel Marketplace → Storage)
- * injects automatically once added to this project. See README "Deploy".
- */
-const redis = Redis.fromEnv();
+class RedisNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "Redis yapılandırılmamış. Vercel dashboard → Storage → Upstash for Redis entegrasyonunu bu projeye ekleyin (bkz. README)."
+    );
+    this.name = "RedisNotConfiguredError";
+  }
+}
+
+function requireRedis() {
+  const redis = getRedis();
+  if (!redis) throw new RedisNotConfiguredError();
+  return redis;
+}
 
 export type DailyDestinationSnapshot = {
   city: string;
@@ -41,6 +49,7 @@ export async function recordDailySnapshot(
   date: string,
   cheapest: FlightResult
 ): Promise<DailyDestinationSnapshot> {
+  const redis = requireRedis();
   await redis.hset(historyKey(city), { [date]: cheapest.price });
 
   const allEntries = (await redis.hgetall<Record<string, number>>(historyKey(city))) ?? {};
@@ -101,6 +110,8 @@ export async function recordDailySnapshotSafely(
 }
 
 export async function getLatestSnapshot(city: string): Promise<DailyDestinationSnapshot | null> {
+  const redis = getRedis();
+  if (!redis) return null;
   const value = await redis.get<DailyDestinationSnapshot>(latestKey(city));
   return value ?? null;
 }
@@ -116,8 +127,8 @@ export async function getAllLatestSnapshots(
 
 /**
  * Same as getAllLatestSnapshots, but never throws — used on the homepage
- * so a not-yet-configured KV store (before the first deploy's setup step)
- * or a transient KV outage degrades to "no deals yet" instead of a 500.
+ * so an unconfigured store or a transient Redis outage degrades to a live
+ * search (see lib/dailyTop.ts) instead of a 500.
  */
 export async function getAllLatestSnapshotsSafely(
   cities: string[]
@@ -125,7 +136,7 @@ export async function getAllLatestSnapshotsSafely(
   try {
     return await getAllLatestSnapshots(cities);
   } catch (error) {
-    console.error("Failed to read daily snapshots from KV:", error);
+    console.error("Failed to read daily snapshots from Redis:", error);
     return [];
   }
 }

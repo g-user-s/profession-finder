@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveDateRange } from "@/lib/dates";
 import { recordDailySnapshot } from "@/lib/dailySnapshot";
+import { getRedisCredentials } from "@/lib/redis";
 import { searchCheapestFlights } from "@/lib/search";
 
 export const runtime = "nodejs";
@@ -18,11 +19,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  if (!getRedisCredentials()) {
     return NextResponse.json(
       {
         error:
-          "Redis yapılandırılmamış. Vercel dashboard → Storage → Upstash for Redis entegrasyonunu bu projeye ekleyin (bkz. README)."
+          "Redis yapılandırılmamış. Vercel dashboard → Storage → Upstash for Redis entegrasyonunu bu projeye ekleyin (bkz. README).",
+        expectedEnvVars: [
+          "UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN",
+          "veya KV_REST_API_URL + KV_REST_API_TOKEN"
+        ]
       },
       { status: 503 }
     );

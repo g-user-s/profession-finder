@@ -135,8 +135,16 @@ gösterilir), hata vermez.
    arama yapar, sadece yavaş olur ve "normalden %X ucuz" rozeti için gereken
    fiyat geçmişi birikmez):
    Vercel dashboard → projeniz → Storage → Marketplace Database Providers →
-   "Upstash for Redis" → oluştur ve projeye bağla. `UPSTASH_REDIS_REST_URL`
-   ve `UPSTASH_REDIS_REST_TOKEN` otomatik eklenir, elle girmeyin.
+   "Upstash for Redis" → oluştur ve projeye bağla. Env değişkenleri otomatik
+   eklenir, elle girmeyin. Vercel bağlama şekline göre iki farklı isimlendirme
+   kullanabiliyor — uygulama ikisini de okur (`lib/redis.ts`):
+   `UPSTASH_REDIS_REST_URL`+`UPSTASH_REDIS_REST_TOKEN` veya
+   `KV_REST_API_URL`+`KV_REST_API_TOKEN`.
+
+   Bağlantının gerçekten kurulduğunu `/api/daily-top` çıktısından
+   doğrulayabilirsiniz: `storage.configured` `true` olmalı ve ilk cron/
+   ziyaretten sonra `source` `"stored"` dönmelidir. `source` sürekli
+   `"live"` kalıyorsa veri kaydedilmiyordur.
 3. **CRON_SECRET ekleyin**: Project Settings → Environment Variables →
    `CRON_SECRET` = rastgele bir string. `vercel.json`'daki cron zaten
    `/api/cron/daily-snapshot`'ı her gün 06:00 UTC'de (09:00 İstanbul)
