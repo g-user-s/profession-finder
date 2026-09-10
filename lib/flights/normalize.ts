@@ -125,4 +125,46 @@ export function parseGoogleFlightsPageData(
   return options;
 }
 
+export type PageDataDiagnostics = {
+  dataFound: boolean;
+  topLevelLength: number | null;
+  bucket2Length: number | null;
+  bucket3Length: number | null;
+  rawFlightEntryCount: number;
+};
+
+/**
+ * Feasibility-debugging helper: reports the shape of the extracted ds:1
+ * array without needing to dump the (large, undocumented) payload itself.
+ * Used only by /api/feasibility, never by the real search path.
+ */
+export function diagnosePageData(data: unknown[] | null): PageDataDiagnostics {
+  if (!data) {
+    return {
+      dataFound: false,
+      topLevelLength: null,
+      bucket2Length: null,
+      bucket3Length: null,
+      rawFlightEntryCount: 0
+    };
+  }
+
+  const bucket2 = data[2];
+  const bucket3 = data[3];
+  let rawFlightEntryCount = 0;
+  for (const bucket of [bucket2, bucket3]) {
+    if (Array.isArray(bucket) && Array.isArray(bucket[0])) {
+      rawFlightEntryCount += bucket[0].length;
+    }
+  }
+
+  return {
+    dataFound: true,
+    topLevelLength: data.length,
+    bucket2Length: Array.isArray(bucket2) ? bucket2.length : null,
+    bucket3Length: Array.isArray(bucket3) ? bucket3.length : null,
+    rawFlightEntryCount
+  };
+}
+
 export { extractGoogleFlightsPageData, readDurationLabel };

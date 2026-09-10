@@ -20,10 +20,53 @@ const USER_AGENT =
 export function buildGoogleFlightsSearchUrl(
   origin: string,
   destination: string,
-  departureDate: string
+  departureDate: string,
+  locale: { hl: string; curr: string } = { hl: "en", curr: "USD" }
 ): string {
   const query = `${origin}-${destination}-${departureDate}`;
-  return `${GOOGLE_FLIGHTS_PAGE_URL}?q=${encodeURIComponent(query)}&hl=tr&curr=TRY`;
+  return `${GOOGLE_FLIGHTS_PAGE_URL}?q=${encodeURIComponent(query)}&hl=${locale.hl}&curr=${locale.curr}`;
+}
+
+export type FetchedGoogleFlightsPage = {
+  requestUrl: string;
+  finalUrl: string;
+  status: number;
+  html: string;
+};
+
+/**
+ * Fetches Google's public search page directly. Exported (in addition to
+ * being used by GoogleFlightsProvider below) so /api/feasibility can inspect
+ * the raw response — status, final URL after redirects, HTML length — when
+ * diagnosing why a query returned no results.
+ */
+export async function fetchGoogleFlightsPage(
+  url: string
+): Promise<FetchedGoogleFlightsPage> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        referer: GOOGLE_FLIGHTS_PAGE_URL,
+        "user-agent": USER_AGENT
+      }
+    });
+
+    const html = await response.text();
+    return {
+      requestUrl: url,
+      finalUrl: response.url,
+      status: response.status,
+      html
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export class GoogleFlightsProvider implements FlightProvider {
@@ -34,33 +77,14 @@ export class GoogleFlightsProvider implements FlightProvider {
       params.departureDate
     );
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    let html: string;
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "accept-language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-          referer: GOOGLE_FLIGHTS_PAGE_URL,
-          "user-agent": USER_AGENT
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Google Flights sayfası ${response.status} döndü (${params.origin} -> ${params.destination})`
-        );
-      }
-
-      html = await response.text();
-    } finally {
-      clearTimeout(timeout);
+    const page = await fetchGoogleFlightsPage(url);
+    if (page.status !== 200) {
+      throw new Error(
+        `Google Flights sayfası ${page.status} döndü (${params.origin} -> ${params.destination})`
+      );
     }
 
-    const data = extractGoogleFlightsPageData(html);
+    const data = extractGoogleFlightsPageData(page.html);
     if (!data) {
       throw new Error(
         `Google Flights sayfasından veri çıkarılamadı (${params.origin} -> ${params.destination}). Sayfa yapısı değişmiş olabilir.`
@@ -68,7 +92,6 @@ export class GoogleFlightsProvider implements FlightProvider {
     }
 
     const options = parseGoogleFlightsPageData(data);
-    const bookingUrl = url;
-    return options.map((option) => ({ ...option, bookingUrl }));
+    return options.map((option) => ({ ...option, bookingUrl: url }));
   }
 }
