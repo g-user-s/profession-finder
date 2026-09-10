@@ -9,6 +9,41 @@
 
 .deal-card {
   margin: 0;
+  overflow: hidden;
+}
+
+.deal-card__media {
+  position: relative;
+  margin: calc(var(--pico-block-spacing-vertical) * -1)
+    calc(var(--pico-block-spacing-horizontal) * -1) 1rem;
+}
+
+.deal-card__media img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+/* Scrim so the city name stays readable over any photo. */
+.deal-card__media-label {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 2.5rem 1rem 0.75rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  color: #fff;
+  line-height: 1.2;
+}
+
+.deal-card__media-label strong {
+  display: block;
+  font-size: 1.35rem;
+}
+
+.deal-card__media-label span {
+  font-size: 0.9rem;
+  opacity: 0.85;
 }
 
 .deal-card__badge {

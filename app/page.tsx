@@ -1,5 +1,6 @@
 import type { DailyDestinationSnapshot } from "@/lib/dailySnapshot";
 import { getDailyTop } from "@/lib/dailyTop";
+import { getDestinationImage } from "@/lib/destinationImages";
 import { destinations } from "@/lib/destinations";
 
 // Reads Redis (and, before the first cron run, falls back to a live
@@ -32,6 +33,7 @@ function formatDate(dateStr: string): string {
 
 function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
   const { cheapest } = snapshot;
+  const image = getDestinationImage(snapshot.city);
   const detailParts: string[] = [];
   if (cheapest.airline) detailParts.push(cheapest.airline);
   if (typeof cheapest.stops === "number") {
@@ -41,18 +43,29 @@ function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
 
   return (
     <article className="deal-card">
-      <header>
-        {snapshot.discountPercent !== null && (
-          <span className="deal-card__badge">
-            Normalden %{snapshot.discountPercent} daha ucuz
-          </span>
-        )}
-        <hgroup>
+      {image ? (
+        // Plain <img>, not next/image: these are a handful of fixed local
+        // files, and Vercel's Hobby plan meters image optimization.
+        <div className="deal-card__media">
+          <img src={image} alt={`${snapshot.city}, ${snapshot.country}`} loading="lazy" />
+          <div className="deal-card__media-label">
+            <strong>{snapshot.city}</strong>
+            <span>{snapshot.country}</span>
+          </div>
+        </div>
+      ) : (
+        <header>
           <strong>
             {snapshot.city}, {snapshot.country}
           </strong>
-        </hgroup>
-      </header>
+        </header>
+      )}
+
+      {snapshot.discountPercent !== null && (
+        <span className="deal-card__badge">
+          Normalden %{snapshot.discountPercent} daha ucuz
+        </span>
+      )}
 
       <p className="deal-card__route">
         {cheapest.origin} → {cheapest.destination} · {formatDate(cheapest.departureDate)}
