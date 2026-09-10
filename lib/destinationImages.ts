@@ -10,7 +10,7 @@ const IMAGE_BASE = "https://bisque-wolverine-754767.hostingersite.com/r";
 const destinationImages: Record<string, string> = {
   Roma: "/destinations/roma.jpg",
   Paris: "/destinations/paris.jpg",
-  Amsterdam: `${IMAGE_BASE}/iate.jpg`,
+  Amsterdam: "/destinations/amsterdam.jpg",
   Düsseldorf: "/destinations/dusseldorf.jpg",
   Sevilla: `${IMAGE_BASE}/zeho.jpg`
 };
