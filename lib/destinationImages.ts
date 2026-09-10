@@ -1,19 +1,21 @@
 /**
- * Card photos, served from public/destinations/. ASCII slugs on purpose —
- * "Düsseldorf.jpg" would mean percent-encoded, encoding-sensitive URLs for
- * no benefit.
+ * Card photos.
+ *
+ * These are hotlinked from an external host for now, by choice — if that
+ * host goes away or blocks hotlinking, the cards lose their photos. Moving
+ * them into public/destinations/ and swapping these for local paths is a
+ * one-line-per-entry change; nothing else depends on where they live.
  *
  * Missing entries are fine: the card just renders without a photo.
  */
+const IMAGE_BASE = "https://bisque-wolverine-754767.hostingersite.com/r";
+
 const destinationImages: Record<string, string> = {
-  // Filled in together with the files themselves — an entry here with no
-  // file behind it renders a broken image on a live card, so the two must
-  // land in the same change:
-  //   Roma: "/destinations/roma.jpg",
-  //   Paris: "/destinations/paris.jpg",
-  //   Amsterdam: "/destinations/amsterdam.jpg",
-  //   Düsseldorf: "/destinations/dusseldorf.jpg",
-  //   Sevilla: "/destinations/sevilla.jpg"
+  Roma: `${IMAGE_BASE}/huba.jpg`,
+  Paris: `${IMAGE_BASE}/niwi.jpg`,
+  Amsterdam: `${IMAGE_BASE}/iate.jpg`,
+  Düsseldorf: `${IMAGE_BASE}/jupa.jpg`,
+  Sevilla: `${IMAGE_BASE}/zeho.jpg`
 };
 
 export function getDestinationImage(city: string): string | null {

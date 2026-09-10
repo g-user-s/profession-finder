@@ -28,6 +28,10 @@ anlamaya yardımcı olur).
 - Vercel serverless functions (Node.js runtime) + Vercel Cron
 - Upstash Redis (Vercel Marketplace, ücretsiz katman) — günlük fiyat geçmişi
 - Harici ücretli uçuş API'si veya SerpApi **kullanılmıyor**
+- Destinasyon fotoğrafları şimdilik harici bir sunucudan çekiliyor
+  (`lib/destinationImages.ts`). O sunucu kapanırsa kartlar fotoğrafsız
+  kalır; kalıcı çözüm için dosyaları `public/destinations/` altına alıp
+  yolları yerel hale getirmek yeterli.
 
 ## Mimari
 

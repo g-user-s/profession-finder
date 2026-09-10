@@ -16,6 +16,10 @@
   position: relative;
   margin: calc(var(--pico-block-spacing-vertical) * -1)
     calc(var(--pico-block-spacing-horizontal) * -1) 1rem;
+  /* Photos load from an external host — a neutral ground keeps a slow or
+     failed load looking deliberate instead of broken. */
+  background: var(--pico-secondary-background, #34404b);
+  min-height: 1px;
 }
 
 .deal-card__media img {
