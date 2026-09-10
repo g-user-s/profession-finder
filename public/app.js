@@ -11,16 +11,10 @@
   var dateButtons = document.querySelectorAll("[data-date-option]");
   var searchButton = document.getElementById("search-button");
   var errorBox = document.getElementById("error-box");
-  var resultsSection = document.getElementById("results");
   var resultsHeading = document.getElementById("results-heading");
   var resultsList = document.getElementById("results-list");
 
   var dateOption = "this_month";
-  dateButtons.forEach(function (button) {
-    if (button.getAttribute("data-date-option") === dateOption) {
-      button.dataset.active = "true";
-    }
-  });
 
   function setActiveDateOption(option) {
     dateOption = option;
@@ -110,34 +104,17 @@
       article.appendChild(buildFlightLine(outcome.cheapest));
 
       if (outcome.alternatives && outcome.alternatives.length > 0) {
-        var expanded = false;
-        var alternativesContainer = document.createElement("div");
-        alternativesContainer.hidden = true;
+        var details = document.createElement("details");
+        var summary = document.createElement("summary");
+        summary.textContent = "Alternatif uçuşları gör (" + outcome.alternatives.length + ")";
+        details.appendChild(summary);
 
         outcome.alternatives.forEach(function (alternative) {
-          alternativesContainer.appendChild(document.createElement("hr"));
-          alternativesContainer.appendChild(buildFlightLine(alternative));
+          details.appendChild(document.createElement("hr"));
+          details.appendChild(buildFlightLine(alternative));
         });
 
-        var toggleButton = document.createElement("button");
-        toggleButton.type = "button";
-        toggleButton.className = "outline secondary";
-
-        function updateToggleLabel() {
-          toggleButton.textContent = expanded
-            ? "Alternatifleri gizle"
-            : "Alternatif uçuşları gör (" + outcome.alternatives.length + ")";
-        }
-        updateToggleLabel();
-
-        toggleButton.addEventListener("click", function () {
-          expanded = !expanded;
-          alternativesContainer.hidden = !expanded;
-          updateToggleLabel();
-        });
-
-        article.appendChild(toggleButton);
-        article.appendChild(alternativesContainer);
+        article.appendChild(details);
       }
     } else {
       var errorParagraph = document.createElement("p");
@@ -148,10 +125,14 @@
     return article;
   }
 
-  function renderResults(results) {
+  function renderResults(city, results) {
     resultsList.innerHTML = "";
+
+    var label = dateOptionLabels[dateOption] || "";
     resultsHeading.textContent =
-      (dateOptionLabels[dateOption] || "") + " İstanbul'dan en ucuz uçuşlar";
+      city === "all"
+        ? label + " İstanbul'dan en ucuz uçuşlar"
+        : label + " İstanbul → " + city + " en ucuz uçuşlar";
 
     if (results.length === 0) {
       var empty = document.createElement("p");
@@ -162,8 +143,6 @@
         resultsList.appendChild(buildDestinationCard(outcome));
       });
     }
-
-    resultsSection.hidden = false;
   }
 
   function showError(message) {
@@ -176,19 +155,17 @@
     errorBox.textContent = "";
   }
 
-  searchButton.addEventListener("click", function () {
+  function runSearch() {
+    var city = destinationSelect.value;
+
     hideError();
-    resultsSection.hidden = true;
     searchButton.setAttribute("aria-busy", "true");
     searchButton.disabled = true;
     searchButton.textContent = "Aranıyor…";
 
-    var params = new URLSearchParams({
-      city: destinationSelect.value,
-      dateOption: dateOption
-    });
+    var params = new URLSearchParams({ city: city, dateOption: dateOption });
 
-    fetch("/api/search?" + params.toString())
+    return fetch("/api/search?" + params.toString())
       .then(function (response) {
         return response.json().then(function (data) {
           if (!response.ok) {
@@ -198,9 +175,11 @@
         });
       })
       .then(function (data) {
-        renderResults(data.results);
+        renderResults(city, data.results);
       })
       .catch(function (error) {
+        // Leave whatever results (skeleton or previous data) already on the
+        // page — a failed search should never blank the page out.
         showError(
           (error && error.message) ||
             "Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin."
@@ -211,5 +190,12 @@
         searchButton.disabled = false;
         searchButton.textContent = "Ucuz Uçuşları Bul";
       });
-  });
+  }
+
+  searchButton.addEventListener("click", runSearch);
+
+  // The page already shows real destination cards on first paint (server-
+  // rendered, see app/page.tsx). Fetch the real, default
+  // "Bu Ay / Tüm destinasyonlar" numbers right away to replace them.
+  runSearch();
 })();
