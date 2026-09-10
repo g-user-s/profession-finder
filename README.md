@@ -1,111 +1,87 @@
-# Cheapest Flight Picker
+# İstanbul Çıkışlı Ucuz Uçuş Bulucu
 
-This is a flight search app that compares every single flight within the specifications you give it, and simply feeds you the cheapest options.
+İstanbul (IST + SAW) çıkışlı, önceden tanımlı bir destinasyon listesi için en
+ucuz uçuşu bulan, Vercel üzerinde çalışacak sade bir Next.js uygulaması.
 
-It still uses Google Flights when you run it locally on your own machine, and it also gives you both a browser UI and a CLI if you'd want one.
+## Durum: feasibility doğrulama aşaması
 
-The root of this repo is intentionally pretty clean to let even your grandma run this tool, and the meat of the project lives in `workspace/app`.
+Kod yazımına başlamadan önce Google Flights'tan gerçekten veri alınıp
+alınamadığı doğrulanmalı (resmi/ücretli bir API kullanılmıyor). Bu ortamın
+(sandbox) ağ politikası `google.com`'a tüm erişimi engellediği için doğrulama
+**buradan yapılamadı** — bu Google'ın bot korumasından değil, ortamın
+organizasyon ağ politikasından kaynaklanıyor.
 
-![Cheapest Flight Picker UI](docs/ui.png)
+Bu yüzden doğrulama Vercel'e deploy edilip orada yapılacak:
 
-Here's what you get when you fire it up. Punch in a flexible range, hit the button, and let it do the digging.
+1. Bu repoyu Vercel'e bağlayıp deploy edin (bkz. aşağıdaki "Deploy" bölümü).
+2. Deploy sonrası şu uç noktayı ziyaret edin:
+   `https://<deploy-url>/api/feasibility?origin=IST&destination=FCO&date=2026-09-18`
+3. Dönen JSON'da `ok: true` ve `resultCount > 0` ile gerçek fiyat/havayolu
+   bilgisi geliyorsa veri katmanı çalışıyor demektir.
+4. Sonucu paylaşın — **LOCAL: test edilemedi (ortam engeli) / VERCEL: çalışıyor
+   veya çalışmıyor** olarak buraya işlenecek ve arama arayüzü ondan sonra
+   eklenecek.
 
-## What this thing does
+Eğer `ok: false` dönerse veya Vercel'in serverless IP'leri Google tarafından
+engellenirse (bilinen bir risk — datacenter IP'ler sık CAPTCHA/403 alır),
+alternatif bir mimari (örn. ayrı bir rezidansiyel proxy/scraping servisi)
+değerlendirilmesi gerekecek.
 
-- Searches flexible departure and return windows
-- Lets you filter by:
-  - departure and arrival time
-  - cabin
-  - stops
-  - airlines
-  - direct-booking preference when Google exposes the seller
-- Shows these result buckets:
-  - Cheapest overall
-  - Cheapest round-trip
-  - Cheapest two one-ways
-  - Cheapest nonstop
-  - Cheapest option with stops
-- Gives you Google Flights links for the results it finds
-- Has a hidden admin panel you can open with `` ` `` or `~` for logs, auto-origin diagnostics, timing guidance, price alerts, and Hacker Fare state
+## Teknoloji
 
-## Easiest way to run it
+- Next.js (App Router) + TypeScript
+- Pico.css (CDN, ekstra UI kütüphanesi yok)
+- Vercel serverless functions (Node.js runtime)
+- Harici ücretli uçuş API'si veya SerpApi **kullanılmıyor**
 
-If you only download one launcher file, it will download the rest of the repo into a `CheapestFlightPicker` folder in the same directory before launching the app. The launchers also try to install missing Git and Node.js automatically when your package manager or official installers are available.
+## Mimari
 
-### Windows
-
-Run the file:
-
-```bat
-setup-and-launch.bat
+```
+Browser → Next.js server (app/api/*) → lib/flights (provider katmanı) → Google Flights
 ```
 
-### Linux
+```
+lib/
+  types.ts            – paylaşılan tipler (Airport, Destination, FlightResult, ...)
+  destinations.ts      – kalkış havalimanları (IST, SAW) ve destinasyon config'i
+  flights/
+    provider.ts         – provider-agnostic arayüz (FlightProvider)
+    google-flights.ts    – Google Flights'a özel implementasyon (izole)
+    normalize.ts         – Google'ın gömülü sayfa verisini parse etme
+    index.ts             – FLIGHT_PROVIDER env değişkenine göre provider seçimi
+app/
+  page.tsx              – ana arama ekranı (veri doğrulanınca eklenecek)
+  api/feasibility/route.ts – manuel veri-erişimi doğrulama uç noktası
+```
 
-For a desktop launcher, open Terminal and run:
+Google Flights'ın resmi bir API'si yok. Bu uygulama, Google'ın herkese açık
+`google.com/travel/flights` arama sayfasını sunucu tarafında (tarayıcıdan
+değil) çekip sayfaya gömülü `AF_initDataCallback({key: 'ds:1', ...})` JS
+verisini okuyor — yaklaşım [MarsLuay/CheapestFlightPicker](https://github.com/MarsLuay/CheapestFlightPicker/tree/main/docs)
+projesinden referans alınmıştır. Bu resmi olmayan bir yöntem olduğu için
+tamamı `lib/flights/google-flights.ts` ve `lib/flights/normalize.ts` içinde
+izole edilmiştir; uygulamanın geri kalanı yalnızca `FlightProvider`
+arayüzünü bilir.
+
+## Geliştirme
 
 ```bash
-chmod +x setup-and-launch.desktop
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
-Then open or trust `setup-and-launch.desktop` from your file manager.
+## Deploy (Vercel)
 
-Or run the launcher script directly from Terminal:
+1. Bu repoyu GitHub'da Vercel'e bağlayın (Vercel dashboard → Add New Project
+   → bu repoyu seçin) ya da Vercel CLI ile:
+   ```bash
+   npx vercel --prod
+   ```
+2. Environment variable eklemeye gerek yok (`FLIGHT_PROVIDER` opsiyonel,
+   varsayılan `google`).
+3. Deploy tamamlanınca `/api/feasibility` uç noktasını test edin (yukarıya
+   bakın).
 
-```bash
-chmod +x setup-and-launch.sh
-./setup-and-launch.sh
-```
-
-You can also use the app bundle entry point:
-
-```bash
-chmod +x setup-and-launch.app/Contents/MacOS/setup-and-launch
-./setup-and-launch.app/Contents/MacOS/setup-and-launch
-```
-
-### macOS
-
-Open the app bundle from Finder, or run this from Terminal:
-
-```bash
-chmod +x setup-and-launch.app/Contents/MacOS/setup-and-launch
-open setup-and-launch.app
-```
-
-## Background
-
-I wanted to visit my girlfriend across the country as a broke college student, and google flights wasn't cutting it for me.
-
-After hours of researching other repos and methods people have released to find the 'cheapest' flight, I found the good resources were all paygated.
-
-I was not happy.
-Out of spite, I made this tool.
-
-## License
-This repo is source-available under `PolyForm Noncommercial 1.0.0`.
-
-That means:
-
-- you can read the code
-- you can learn from it
-- you can use it for personal, hobby, research, and other noncommercial stuff
-
-What you cannot do under this license:
-
-- use it commercially
-- sell it
-- use it in a paid product, paid service, client project, or business workflow without permission
-
-If you want to use this commercially, you need a separate commercial license from the author (me)
-
-Feel free to contact me here at
-`https://github.com/MarsLuay` or at [marwanluay2005@gmail.com](mailto:marwanluay2005@gmail.com)
-
-See [LICENSE](LICENSE) for the actual license text.
-
-## Legal
-
-- [Privacy Policy](docs/privacy-policy.md)
-- [Terms of Service](docs/terms-of-service.md)
-lication:** Info-level clone groups are mostly intentional parallel server/web modules or repeated UI branches; deduplicating them would be a large refactor with no user-facing benefit.
+Vercel Free (Hobby) planında serverless function süresi sınırlıdır; bu route
+`maxDuration = 30` ile ayarlandı.

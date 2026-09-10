@@ -1,4 +1,27 @@
-.DS_Store
+# dependencies
+node_modules/
 
-# Local analysis caches
-**/.code-analysis/
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# misc
+.DS_Store
+*.pem
+
+# env
+.env*.local
+.env
+
+# debug
+npm-debug.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# vercel
+.vercel
