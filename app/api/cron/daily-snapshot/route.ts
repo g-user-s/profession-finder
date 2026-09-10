@@ -1,4 +1,4 @@
-import { resolveDateRange } from "@/lib/dates";
+import { getIstanbulToday } from "@/lib/dates";
 import { recordDailySnapshot } from "@/lib/dailySnapshot";
 import { jsonResponse } from "@/lib/json";
 import { getRedisCredentials } from "@/lib/redis";
@@ -10,7 +10,7 @@ export const maxDuration = 60;
 /**
  * Fired daily by Vercel Cron (see vercel.json, 06:00 UTC = 09:00
  * Europe/Istanbul). Reuses the same search orchestrator the manual search
- * form uses — this is just "Yarın + Tüm destinasyonlar", run on a
+ * form uses — this is just "Bu Ay + Tüm destinasyonlar", run on a
  * schedule and persisted instead of returned to a browser.
  */
 export async function GET(request: Request) {
@@ -33,8 +33,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const { fromDate } = resolveDateRange("tomorrow");
-  const outcomes = await searchCheapestFlights({ city: "all", dateOption: "tomorrow" });
+  const observedOn = getIstanbulToday();
+  const outcomes = await searchCheapestFlights({ city: "all", dateOption: "this_month" });
 
   const recorded: string[] = [];
   const failed: Array<{ city: string; error: string | null }> = [];
@@ -44,9 +44,9 @@ export async function GET(request: Request) {
       failed.push({ city: outcome.city, error: outcome.error });
       continue;
     }
-    await recordDailySnapshot(outcome.city, outcome.country, fromDate, outcome.cheapest);
+    await recordDailySnapshot(outcome.city, outcome.country, observedOn, outcome.cheapest);
     recorded.push(outcome.city);
   }
 
-  return jsonResponse({ ok: true, date: fromDate, recorded, failed });
+  return jsonResponse({ ok: true, observedOn, recorded, failed });
 }

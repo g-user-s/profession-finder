@@ -41,6 +41,11 @@ export type DateRange = {
   toDate: string;
 };
 
+/** Today's calendar date in Europe/Istanbul, as YYYY-MM-DD. */
+export function getIstanbulToday(now: Date = new Date()): string {
+  return formatIstanbulDate(now);
+}
+
 /** All date math is anchored to "today" in Europe/Istanbul, computed server-side. */
 export function resolveDateRange(option: DateOption, now: Date = new Date()): DateRange {
   const today = formatIstanbulDate(now);

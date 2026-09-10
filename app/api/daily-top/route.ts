@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 /**
  * The same data the homepage server-renders: the cheapest 4 destinations
- * for tomorrow. Served from the daily cron's Redis snapshot, or computed
+ * this month. Served from the daily cron's Redis snapshot, or computed
  * live if that snapshot is missing/stale (see lib/dailyTop.ts).
  *
  * `storage` is here so a misconfigured Redis store is visible rather than
@@ -15,10 +15,10 @@ export const maxDuration = 60;
  */
 export async function GET() {
   const credentials = getRedisCredentials();
-  const { snapshots, date, source, toppedUp, missing } = await getDailyTop();
+  const { snapshots, observedOn, source, toppedUp, missing } = await getDailyTop();
 
   return jsonResponse({
-    date,
+    observedOn,
     source,
     storage: {
       configured: credentials !== null,

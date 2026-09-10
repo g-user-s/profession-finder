@@ -84,30 +84,47 @@ tüm DOM değişiklikleri kullanıcı etkileşiminden sonra olur.
 ### Günlük fırsatlar ve ortalama fiyat formülü
 
 Her gün 09:00'da (İstanbul saati) `api/cron/daily-snapshot` tetiklenir,
-5 destinasyonun **yarın** tarihi için en ucuz fiyatı bulur ve Redis'e yazar.
+5 destinasyon için **ayın kalan günleri** içindeki en ucuz fiyatı bulur ve
+Redis'e yazar. Her destinasyonun en ucuz günü farklı olabilir; kart o
+uçuşun kendi tarihini gösterir.
 
-Site kendi kendini besler: Redis'te **yarın** tarihine ait veri yoksa
-(henüz hiç cron çalışmadıysa veya kayıtlı veri bayatladıysa) sayfa o anda
+Site kendi kendini besler: Redis'teki veri kullanılamıyorsa sayfa o anda
 canlı arama yapar, sonucu gösterir ve Redis'e yazar (`lib/dailyTop.ts`).
 Yani ilk cron'u veya kurulumu beklemeden site çalışır — sadece o ilk
-istek yavaştır, sonraki ziyaretçiler hızlı yolu kullanır. Bayat veriyi
-"Yarın" başlığı altında göstermek yanlış olacağı için tarih eşleşmesi
-şart koşulur.
+istek yavaştır. Kayıtlı veri şu durumlarda reddedilir:
+
+- **30 saatten eski** ise. Gün sınırı yerine saat penceresi kullanıldı;
+  aksi halde her gece yarısı ile 09:00 arasındaki ilk ziyaretçi tam bir
+  canlı aramanın bedelini öderdi.
+- **Uçuş tarihi geçmişse.** Bu kendi başına gerekli: dün akşam bulunmuş
+  "bugün" uçuşu birkaç saatlik olabilir ama tarihi artık geçmiştir.
+- **`observedOn` alanı yoksa.** Bu alan, tek-gün aramadan ay-boyu aramaya
+  geçişten önceki kayıtlarda yok; taze görünseler de farklı kurallarla
+  bulundukları için atılır.
 
 Google'ın "normalden %X ucuz" rozetinin arkasındaki gerçek algoritmasına
 erişimimiz yok, bu yüzden kendi geçmişimizi biriktiriyoruz:
 
-- **Baz fiyat (ortalama):** o destinasyon için son 30 günlük "yarın" fiyat
-  gözleminin **medyanı** (`lib/pricing.ts`). Medyan tercih edildi çünkü tek
-  seferlik bir fiyat sıçraması veya geçici bir hata, ortalamayı aritmetik
-  ortalamadan daha az çarpıtır.
+- **Baz fiyat (ortalama):** o destinasyon için son 30 **gözlem gününün**
+  **medyanı** (`lib/pricing.ts`). Geçmiş, uçuş tarihine göre değil gözlem
+  gününe göre saklanır — arama tüm ayı kapsadığı için kazanan uçuş tarihi
+  her gün değişir, ona göre saklasak örnekler onlarca farklı geleceğe
+  dağılır ve medyan alakasız şeyleri karşılaştırırdı. Medyan tercih edildi
+  çünkü tek seferlik bir fiyat sıçraması ortalamayı daha çok çarpıtır.
 - **İndirim yüzdesi:** `(1 - bugünkü_fiyat / medyan) × 100`, tam sayıya
   yuvarlanmış.
 - **En az 5 günlük veri** birikmeden rozet gösterilmez — aksi halde uydurma
   bir yüzde göstermiş oluruz. Bu durumda kart sadece fiyatı gösterir.
 
-Ana sayfadaki "Yarın için en ucuz fırsatlar" bölümü, tüm destinasyonlar
+Ana sayfadaki "Bu ay en ucuz fırsatlar" bölümü, tüm destinasyonlar
 arasından en ucuz 4'ünü gösterir (`app/api/daily-top/route.ts`).
+
+**Maliyet notu:** ay-boyu arama, havalimanı çifti başına 2 istek demek
+(takvim + en ucuz gün detayı), yani tek gün aramasının iki katı — 5
+destinasyon için ~32 Google isteği. Cron `maxDuration = 60` ile çalışıyor;
+zaman aşımı görürseniz `AIRPORT_PAIR_CONCURRENCY` (`lib/search.ts`)
+ayarlanabilir. Zaman aşımında kısmi sonuç kaydedilir, eksikler sonraki
+ziyarette tamamlanır.
 
 ### Cache
 

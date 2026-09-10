@@ -118,7 +118,7 @@ export default async function HomePage() {
       </hgroup>
 
       <section id="daily-top">
-        <h2>Yarın için en ucuz fırsatlar</h2>
+        <h2>Bu ay en ucuz fırsatlar</h2>
         {dailyTop.length === 0 ? (
           <p>
             Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin —

@@ -20,7 +20,8 @@ function requireRedis() {
 export type DailyDestinationSnapshot = {
   city: string;
   country: string;
-  date: string;
+  /** The Istanbul calendar day this price was observed on. */
+  observedOn: string;
   cheapest: FlightResult;
   baseline: number | null;
   discountPercent: number | null;
@@ -36,41 +37,48 @@ function latestKey(city: string): string {
 }
 
 /**
- * Records today's cheapest "tomorrow" price for a destination and returns
- * it compared against its own history (see lib/pricing.ts). Stored as a
- * Redis hash keyed by date so a retried/duplicate cron run for the same
- * day overwrites in place instead of skewing the sample — and so pruning
- * down to the last MAX_HISTORY_SAMPLES days is a plain sort, no separate
- * trim bookkeeping.
+ * Records the cheapest fare found for a destination today and returns it
+ * compared against its own history (see lib/pricing.ts).
+ *
+ * History is keyed by the day we *observed* the price, not the day the
+ * flight departs. The search covers a whole month, so the winning
+ * departure date moves around; keying by it would scatter samples across
+ * dozens of future dates and leave the median comparing unrelated things.
+ * Keyed by observation day, each entry answers the question the badge
+ * actually asks: what did the cheapest fare to this city cost on day X?
+ *
+ * A hash (rather than a list) means a retried or duplicate cron run for
+ * the same day overwrites in place instead of skewing the sample, and
+ * pruning to the last MAX_HISTORY_SAMPLES days is a plain sort.
  */
 export async function recordDailySnapshot(
   city: string,
   country: string,
-  date: string,
+  observedOn: string,
   cheapest: FlightResult
 ): Promise<DailyDestinationSnapshot> {
   const redis = requireRedis();
-  await redis.hset(historyKey(city), { [date]: cheapest.price });
+  await redis.hset(historyKey(city), { [observedOn]: cheapest.price });
 
   const allEntries = (await redis.hgetall<Record<string, number>>(historyKey(city))) ?? {};
-  const datesNewestFirst = Object.keys(allEntries).sort().reverse();
+  const daysNewestFirst = Object.keys(allEntries).sort().reverse();
 
-  const datesToPrune = datesNewestFirst.slice(MAX_HISTORY_SAMPLES);
-  if (datesToPrune.length > 0) {
-    await redis.hdel(historyKey(city), ...datesToPrune);
+  const daysToPrune = daysNewestFirst.slice(MAX_HISTORY_SAMPLES);
+  if (daysToPrune.length > 0) {
+    await redis.hdel(historyKey(city), ...daysToPrune);
   }
 
-  const priorPrices = datesNewestFirst
+  const priorPrices = daysNewestFirst
     .slice(0, MAX_HISTORY_SAMPLES)
-    .filter((entryDate) => entryDate !== date)
-    .map((entryDate) => allEntries[entryDate]!);
+    .filter((day) => day !== observedOn)
+    .map((day) => allEntries[day]!);
 
   const { baseline, discountPercent } = compareToHistory(cheapest.price, priorPrices);
 
   const snapshot: DailyDestinationSnapshot = {
     city,
     country,
-    date,
+    observedOn,
     cheapest,
     baseline,
     discountPercent,
@@ -90,17 +98,17 @@ export async function recordDailySnapshot(
 export async function recordDailySnapshotSafely(
   city: string,
   country: string,
-  date: string,
+  observedOn: string,
   cheapest: FlightResult
 ): Promise<DailyDestinationSnapshot> {
   try {
-    return await recordDailySnapshot(city, country, date, cheapest);
+    return await recordDailySnapshot(city, country, observedOn, cheapest);
   } catch (error) {
     console.error(`Failed to persist daily snapshot for ${city}:`, error);
     return {
       city,
       country,
-      date,
+      observedOn,
       cheapest,
       baseline: null,
       discountPercent: null,
