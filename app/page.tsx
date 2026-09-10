@@ -1,53 +1,114 @@
 import { destinations } from "@/lib/destinations";
+import { getAllLatestSnapshotsSafely, type DailyDestinationSnapshot } from "@/lib/dailySnapshot";
 
-/** UI-only decoration, not part of the Destination domain type. */
-const destinationTaglines: Record<string, string> = {
-  Roma: "Kolezyum, tarihi merkez ve İtalyan mutfağı",
-  Paris: "Eyfel Kulesi, sanat ve şehir hayatı",
-  Amsterdam: "Kanallar, müzeler ve bisiklet kültürü",
-  Düsseldorf: "Ren Nehri kıyısı ve modern mimari",
-  Sevilla: "Endülüs mimarisi ve flamenko"
-};
+// Reads from KV (see lib/dailySnapshot.ts) on every request — this must
+// never be statically prerendered at build time, since the KV store (and
+// its data) may not exist yet at build time.
+export const dynamic = "force-dynamic";
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function formatPrice(price: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0
+    }).format(price);
+  } catch {
+    return `${price} ${currency}`;
+  }
 }
 
-/**
- * Rendered as a plain HTML string (not JSX) so it can go through
- * dangerouslySetInnerHTML below — React treats that content as opaque and
- * never diffs it during hydration, which is what lets app.js freely
- * overwrite results-list without a hydration-mismatch race. This also means
- * the page shows real destination cards on first paint even if app.js is
- * slow to load or fails, instead of a blank section.
- */
-const resultsSkeletonHtml = destinations
-  .map((destination) => {
-    const tagline = destinationTaglines[destination.city] ?? "";
-    return (
-      "<article><header><strong>" +
-      escapeHtml(destination.city) +
-      ", " +
-      escapeHtml(destination.country) +
-      "</strong></header>" +
-      (tagline ? "<p>" + escapeHtml(tagline) + "</p>" : "") +
-      '<p aria-busy="true">Fiyat yükleniyor…</p></article>'
-    );
-  })
-  .join("");
+function formatDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T00:00:00`);
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(date);
+}
 
-export default function HomePage() {
+function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
+  const { cheapest } = snapshot;
+  const detailParts: string[] = [];
+  if (cheapest.airline) detailParts.push(cheapest.airline);
+  if (typeof cheapest.stops === "number") {
+    detailParts.push(cheapest.stops === 0 ? "Direkt" : `${cheapest.stops} aktarma`);
+  }
+  if (cheapest.duration) detailParts.push(cheapest.duration);
+
+  return (
+    <article className="deal-card">
+      <header>
+        {snapshot.discountPercent !== null && (
+          <span className="deal-card__badge">
+            Normalden %{snapshot.discountPercent} daha ucuz
+          </span>
+        )}
+        <hgroup>
+          <strong>
+            {snapshot.city}, {snapshot.country}
+          </strong>
+        </hgroup>
+      </header>
+
+      <p className="deal-card__route">
+        {cheapest.origin} → {cheapest.destination} · {formatDate(cheapest.departureDate)}
+      </p>
+
+      <p className="deal-card__price">
+        {snapshot.baseline !== null && (
+          <span className="deal-card__baseline">
+            {formatPrice(snapshot.baseline, cheapest.currency)}
+          </span>
+        )}
+        <strong className="deal-card__price-main">
+          {formatPrice(cheapest.price, cheapest.currency)}
+        </strong>
+      </p>
+
+      {detailParts.length > 0 && <p className="deal-card__meta">{detailParts.join(" · ")}</p>}
+
+      {cheapest.bookingUrl && (
+        <a href={cheapest.bookingUrl} target="_blank" rel="noreferrer">
+          Uçuşu Gör
+        </a>
+      )}
+    </article>
+  );
+}
+
+export default async function HomePage() {
+  const allSnapshots = await getAllLatestSnapshotsSafely(
+    destinations.map((destination) => destination.city)
+  );
+  const dailyTop = [...allSnapshots]
+    .sort((a, b) => a.cheapest.price - b.cheapest.price)
+    .slice(0, 4);
+
   return (
     <>
       <hgroup>
         <h1>İstanbul'dan Ucuz Uçuşlar</h1>
         <p>IST ve SAW çıkışlı, seçtiğin döneme göre en ucuz uçuşları bulur.</p>
       </hgroup>
+
+      <section id="daily-top">
+        <h2>Yarın için en ucuz fırsatlar</h2>
+        {dailyTop.length === 0 ? (
+          <p>
+            Fırsatlar hazırlanıyor — her sabah 09:00'da (İstanbul saati) güncellenir, yakında
+            burada görünecek.
+          </p>
+        ) : (
+          <div className="deal-grid">
+            {dailyTop.map((snapshot) => (
+              <DealCard key={snapshot.city} snapshot={snapshot} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <hr />
 
       <label htmlFor="destination">Nereye gitmek istiyorsun?</label>
       <select id="destination" defaultValue="all">
@@ -72,21 +133,15 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/*
-        app.js mutates these on load and on every search. suppressHydrationWarning
-        tells React that's expected here instead of reporting a mismatch.
-      */}
-      <button type="button" id="search-button" suppressHydrationWarning>
+      <button type="button" id="search-button">
         Ucuz Uçuşları Bul
       </button>
 
-      <article id="error-box" hidden suppressHydrationWarning />
+      <article id="error-box" hidden />
 
-      <section id="results">
-        <h2 id="results-heading" suppressHydrationWarning>
-          Bu Ay İstanbul'dan en ucuz uçuşlar
-        </h2>
-        <div id="results-list" dangerouslySetInnerHTML={{ __html: resultsSkeletonHtml }} />
+      <section id="results" hidden>
+        <h2 id="results-heading" />
+        <div id="results-list" />
       </section>
 
       <script src="/app.js" defer />

@@ -12,65 +12,53 @@ alınabildiği doğrulandı:
   politikası `google.com`'un tamamına erişimi engelliyor (Google'ın bot
   korumasından değil, ortamın organizasyon politikasından kaynaklanıyor).
 - **VERCEL: ÇALIŞIYOR** ✅ — `GET /api/feasibility?origin=IST&destination=FCO&date=2026-09-18`
-  gerçek fiyat, havayolu, aktarma ve süre bilgisiyle sonuç döndürdü
-  (örn. Lufthansa, 1 aktarma, 435 dk).
+  gerçek fiyat, havayolu, aktarma ve süre bilgisiyle sonuç döndürdü.
 
-`/api/feasibility` uç noktası hâlâ mevcut; farklı rota/tarih kombinasyonlarını
-manuel doğrulamak için kullanılabilir (`&hl=` ve `&curr=` ile locale override
+`/api/feasibility` hâlâ mevcut; farklı rota/tarih kombinasyonlarını manuel
+doğrulamak için kullanılabilir (`&hl=` ve `&curr=` ile locale override
 edilebilir, sonuç bulunamazsa `htmlSnippet` ve `diagnostics` alanları nedeni
 anlamaya yardımcı olur).
-
-## Bilinen riskler / henüz doğrulanmamış varsayımlar
-
-- **Tarih-aralığı fiyat grafiği:** "Bu Hafta"/"Bu Ay" aramaları, her gün için
-  ayrı istek atmak yerine Google'ın sayfaya gömdüğü fiyat grafiğini
-  (`data[5][10][0]`) tek istekle okuyup en ucuz tarihi bulur, sonra sadece o
-  tarih için detaylı sorgu atar. Bu grafiğin gerçekten dolu geldiği ayrıca
-  doğrulanmalı; boş gelirse kod otomatik olarak aralığın ilk gününe düşer
-  (arama başarısız olmaz, sadece o gün için sonuç döner).
-- **Vercel fonksiyon süresi:** "Tüm destinasyonlar" + "Bu Ay" seçimi en kötü
-  senaryoda ~16 havalimanı çifti × 2 istek = ~32 Google isteği anlamına
-  gelir (5'li eşzamanlılıkla). `/api/search` route'u `maxDuration = 60` ile
-  ayarlandı; Vercel Hobby planınızda bu süre desteklenmiyorsa deploy sırasında
-  hata alırsınız — bu durumda eşzamanlılığı (`AIRPORT_PAIR_CONCURRENCY`,
-  `lib/search.ts`) düşürmek veya aramayı destinasyon başına ayrı isteklere
-  bölmek gerekir.
-- **Pico.css CDN:** `app/layout.tsx`, Pico.css'i `cdn.jsdelivr.net`'ten
-  yükler (bu sandbox'ta bu adres de engelli olduğu için görsel doğrulama
-  yapılamadı, ama etkileşim/form/arama akışı gerçek tarayıcıda test edildi).
-  Gerçek kullanıcılarda bu CDN erişimi normal şartlarda sorun olmaz.
 
 ## Teknoloji
 
 - Next.js (App Router) + TypeScript
-- Pico.css (CDN, ekstra UI kütüphanesi yok)
-- Vercel serverless functions (Node.js runtime)
+- Pico.css (CDN) + küçük bir özel `public/styles.css` (fırsat kartları için)
+- Vanilla JavaScript (`public/app.js`) — manuel arama formunun tüm etkileşimi,
+  React state kullanılmıyor
+- Vercel serverless functions (Node.js runtime) + Vercel Cron
+- Upstash Redis (Vercel Marketplace, ücretsiz katman) — günlük fiyat geçmişi
 - Harici ücretli uçuş API'si veya SerpApi **kullanılmıyor**
 
 ## Mimari
 
 ```
 Browser → Next.js server (app/api/*) → lib/flights (provider katmanı) → Google Flights
+                                      → lib/dailySnapshot.ts → Upstash Redis
 ```
 
 ```
 lib/
-  types.ts              – paylaşılan tipler (Airport, Destination, FlightResult, ...)
-  destinations.ts        – kalkış havalimanları (IST, SAW) ve destinasyon config'i
-  dates.ts                – Yarın/Bu Hafta/Bu Ay için Europe/Istanbul tabanlı tarih hesaplama
-  search.ts               – arama orkestrasyonu: havalimanı çiftleri, eşzamanlılık, kısmi hata toleransı
+  types.ts                – paylaşılan tipler (Airport, Destination, FlightResult, ...)
+  destinations.ts          – kalkış havalimanları (IST, SAW) ve destinasyon config'i
+  dates.ts                  – Yarın/Bu Hafta/Bu Ay için Europe/Istanbul tabanlı tarih hesaplama
+  search.ts                 – arama orkestrasyonu: havalimanı çiftleri, eşzamanlılık, kısmi hata toleransı
+  pricing.ts                 – medyan/indirim-yüzdesi hesaplama (bkz. "Ortalama fiyat" aşağıda)
+  dailySnapshot.ts            – günlük fiyat geçmişini Redis'te okuma/yazma
   flights/
-    provider.ts             – provider-agnostic arayüz (FlightProvider)
-    google-flights.ts        – Google Flights'a özel implementasyon (izole)
-    normalize.ts             – Google'ın gömülü sayfa verisini parse etme
-    cache.ts                 – basit in-memory cache (Vercel'de kalıcı değil, bkz. aşağı)
-    index.ts                 – FLIGHT_PROVIDER env değişkenine göre provider seçimi
+    provider.ts               – provider-agnostic arayüz (FlightProvider)
+    google-flights.ts          – Google Flights'a özel implementasyon (izole)
+    normalize.ts               – Google'ın gömülü sayfa verisini parse etme
+    cache.ts                   – basit in-memory cache (Vercel'de kalıcı değil)
+    index.ts                   – FLIGHT_PROVIDER env değişkenine göre provider seçimi
 app/
-  page.tsx                – ana arama ekranı (client component)
-  api/search/route.ts       – arama uç noktası (UI'ın çağırdığı)
-  api/feasibility/route.ts  – manuel veri-erişimi doğrulama/debug uç noktası
-components/
-  DestinationResultCard.tsx – tek destinasyon sonucu (en ucuz + alternatifler)
+  page.tsx                  – ana sayfa (server component): günlük fırsat kartları + arama formu
+  api/search/route.ts         – manuel arama uç noktası (app.js'in çağırdığı, canlı Google sorgusu)
+  api/daily-top/route.ts      – en ucuz 4 günlük fırsat (Redis'ten, canlı sorgu yok)
+  api/cron/daily-snapshot/    – Vercel Cron her gün 09:00 İstanbul'da bunu tetikler
+  api/feasibility/route.ts    – manuel veri-erişimi doğrulama/debug uç noktası
+public/
+  app.js                     – arama formunun tüm etkileşimi (vanilla JS, DOM API)
+  styles.css                 – fırsat kartları için Pico.css üzerine ek stil
 ```
 
 Google Flights'ın resmi bir API'si yok. Bu uygulama, Google'ın herkese açık
@@ -82,14 +70,42 @@ tamamı `lib/flights/google-flights.ts` ve `lib/flights/normalize.ts` içinde
 izole edilmiştir; uygulamanın geri kalanı yalnızca `FlightProvider`
 arayüzünü bilir.
 
+### Ana sayfa hiç boş görünmez
+
+`app/page.tsx` bir server component: `/api/daily-top` verisini (Redis'ten,
+canlı Google sorgusu olmadan) doğrudan sunucu tarafında okuyup ilk HTML'e
+gömer. Sayfa hiçbir JS çalışmadan bile dolu gelir. Manuel arama formu
+(`public/app.js`) sadece kullanıcı "Ucuz Uçuşları Bul"a tıklayınca canlı
+`/api/search` sorgusu atar — hydration ile çakışma riski olmadan, çünkü
+tüm DOM değişiklikleri kullanıcı etkileşiminden sonra olur.
+
+### Günlük fırsatlar ve ortalama fiyat formülü
+
+Her gün 09:00'da (İstanbul saati) `api/cron/daily-snapshot` tetiklenir,
+5 destinasyonun **yarın** tarihi için en ucuz fiyatı bulur ve Redis'e yazar.
+
+Google'ın "normalden %X ucuz" rozetinin arkasındaki gerçek algoritmasına
+erişimimiz yok, bu yüzden kendi geçmişimizi biriktiriyoruz:
+
+- **Baz fiyat (ortalama):** o destinasyon için son 30 günlük "yarın" fiyat
+  gözleminin **medyanı** (`lib/pricing.ts`). Medyan tercih edildi çünkü tek
+  seferlik bir fiyat sıçraması veya geçici bir hata, ortalamayı aritmetik
+  ortalamadan daha az çarpıtır.
+- **İndirim yüzdesi:** `(1 - bugünkü_fiyat / medyan) × 100`, tam sayıya
+  yuvarlanmış.
+- **En az 5 günlük veri** birikmeden rozet gösterilmez — aksi halde uydurma
+  bir yüzde göstermiş oluruz. Bu durumda kart sadece fiyatı gösterir.
+
+Ana sayfadaki "Yarın için en ucuz fırsatlar" bölümü, tüm destinasyonlar
+arasından en ucuz 4'ünü gösterir (`app/api/daily-top/route.ts`).
+
 ### Cache
 
-`lib/flights/cache.ts`, serverless fonksiyonun modül kapsamında yaşayan basit
-bir `Map`'tir. Vercel'de bu **kalıcı değildir**: her cold start'ta boşalır,
-paralel/ölçeklenen instance'lar birbirinden habersizdir. Sadece aynı sıcak
-instance'a düşen tekrar isteklerde işe yarar. İleride gerçek paylaşılan cache
-gerekirse (Redis/Vercel KV), sadece bu dosyadaki iki fonksiyon değiştirilir —
-başka hiçbir yer etkilenmez.
+`lib/flights/cache.ts`, canlı arama (`/api/search`) için serverless
+fonksiyonun modül kapsamında yaşayan basit bir `Map`'tir — Vercel'de
+**kalıcı değildir**, sadece aynı sıcak instance'a düşen tekrar isteklerde
+işe yarar. Günlük fırsatlar bundan ayrı, Redis'te kalıcı olarak tutulur
+(`lib/dailySnapshot.ts`).
 
 ## Geliştirme
 
@@ -99,15 +115,31 @@ cp .env.example .env.local
 npm run dev
 ```
 
+Redis olmadan da çalışır: `/api/daily-top` ve ana sayfadaki günlük
+fırsatlar bölümü boş veriye düşer ("Fırsatlar hazırlanıyor…" mesajı
+gösterilir), hata vermez.
+
 ## Deploy (Vercel)
 
 1. Bu repoyu GitHub'da Vercel'e bağlayın (Vercel dashboard → Add New Project
-   → bu repoyu seçin, branch: `main`) ya da Vercel CLI ile:
-   ```bash
-   npx vercel --prod
-   ```
-2. Environment variable eklemeye gerek yok (`FLIGHT_PROVIDER` opsiyonel,
-   varsayılan `google`).
-3. Deploy sonrası test:
+   → bu repoyu seçin, branch: `main`) ya da Vercel CLI ile: `npx vercel --prod`
+2. **Upstash Redis ekleyin** (günlük fırsatlar için gerekli):
+   Vercel dashboard → projeniz → Storage → Marketplace Database Providers →
+   "Upstash for Redis" → oluştur ve projeye bağla. `UPSTASH_REDIS_REST_URL`
+   ve `UPSTASH_REDIS_REST_TOKEN` otomatik eklenir, elle girmeyin.
+3. **CRON_SECRET ekleyin**: Project Settings → Environment Variables →
+   `CRON_SECRET` = rastgele bir string. `vercel.json`'daki cron zaten
+   `/api/cron/daily-snapshot`'ı her gün 06:00 UTC'de (09:00 İstanbul)
+   otomatik tetikler; bu secret, o uç noktayı başkalarının tetiklemesini
+   engeller.
+4. Deploy sonrası test:
    - `/api/feasibility?origin=IST&destination=FCO&date=2026-09-18` — tekil veri doğrulama
-   - `/` — tam arama arayüzü
+   - İlk veriyi 09:00'ı beklemeden hemen üretmek için (CRON_SECRET ile korunuyor,
+     bu yüzden tarayıcıdan değil, header ile çağırmak gerekir):
+     ```bash
+     curl -H "Authorization: Bearer <CRON_SECRET>" https://<deploy-url>/api/cron/daily-snapshot
+     ```
+   - `/` — günlük fırsatlar + tam arama arayüzü
+
+Vercel Hobby planında cron job'lar günde bir kez çalışacak şekilde
+sınırlıdır — tasarım zaten buna uygun (günde 1 kez, 09:00).

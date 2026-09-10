@@ -11,6 +11,7 @@
   var dateButtons = document.querySelectorAll("[data-date-option]");
   var searchButton = document.getElementById("search-button");
   var errorBox = document.getElementById("error-box");
+  var resultsSection = document.getElementById("results");
   var resultsHeading = document.getElementById("results-heading");
   var resultsList = document.getElementById("results-list");
 
@@ -126,6 +127,7 @@
   }
 
   function renderResults(city, results) {
+    resultsSection.hidden = false;
     resultsList.innerHTML = "";
 
     var label = dateOptionLabels[dateOption] || "";
@@ -192,10 +194,8 @@
       });
   }
 
+  // Only runs on click — the homepage's "never empty" job is handled by
+  // the server-rendered "Yarın için en ucuz fırsatlar" section (see
+  // app/page.tsx), so there's no need to auto-fire a live search on load.
   searchButton.addEventListener("click", runSearch);
-
-  // The page already shows real destination cards on first paint (server-
-  // rendered, see app/page.tsx). Fetch the real, default
-  // "Bu Ay / Tüm destinasyonlar" numbers right away to replace them.
-  runSearch();
 })();

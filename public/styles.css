@@ -1,0 +1,48 @@
+/* Layered on top of Pico.css — only the "Yarın için en ucuz fırsatlar"
+   deal cards get bespoke styling; everything else stays plain Pico. */
+
+.deal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.deal-card {
+  margin: 0;
+}
+
+.deal-card__badge {
+  display: inline-block;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+
+.deal-card__route {
+  color: var(--pico-muted-color);
+  margin-bottom: 0.25rem;
+}
+
+.deal-card__price {
+  margin: 0.25rem 0;
+}
+
+.deal-card__baseline {
+  color: var(--pico-muted-color);
+  text-decoration: line-through;
+  margin-right: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.deal-card__price-main {
+  font-size: 1.5rem;
+}
+
+.deal-card__meta {
+  color: var(--pico-muted-color);
+  font-size: 0.9rem;
+}
