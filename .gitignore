@@ -1,16 +1,4 @@
-# Üretilmiş çıktılar
-data/tahmin_sonuclari.csv
-data/analiz_grafikleri.png
-
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-
-# macOS
 .DS_Store
 
-# IDE
-.vscode/
-.idea/
+# Local analysis caches
+**/.code-analysis/
