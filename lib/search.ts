@@ -6,8 +6,16 @@ import { getCached, setCached } from "./flights/cache";
 import { readDurationLabel } from "./flights/normalize";
 import type { DateOption, Destination, DestinationSearchOutcome, FlightResult } from "./types";
 
-/** Cap concurrent Google Flights requests process-wide for one search. */
+/**
+ * Cap concurrent Google Flights requests for one search. This is applied
+ * once across every destination, not per destination — Google rate-limits
+ * per client, so a per-destination cap would still let five destinations
+ * fire five requests each at the same moment.
+ */
 const AIRPORT_PAIR_CONCURRENCY = 5;
+
+const GENERIC_ERROR =
+  "Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin.";
 
 export type SearchInput = {
   city: string | "all";
@@ -24,50 +32,58 @@ export async function searchCheapestFlights(
       : destinations.filter((destination) => destination.city === input.city);
 
   const provider = getFlightProvider();
-  const outcomes = await Promise.all(
-    targetDestinations.map((destination) =>
-      searchDestination(provider, destination, fromDate, toDate)
+  const pairs = targetDestinations.flatMap((destination) =>
+    departureAirports.flatMap((origin) =>
+      destination.airports.map((destinationAirport) => ({
+        city: destination.city,
+        origin: origin.code,
+        destinationAirport
+      }))
     )
-  );
-
-  return outcomes.sort((a, b) => {
-    if (a.cheapest && b.cheapest) return a.cheapest.price - b.cheapest.price;
-    if (a.cheapest) return -1;
-    if (b.cheapest) return 1;
-    return 0;
-  });
-}
-
-async function searchDestination(
-  provider: FlightProvider,
-  destination: Destination,
-  fromDate: string,
-  toDate: string
-): Promise<DestinationSearchOutcome> {
-  const pairs = departureAirports.flatMap((origin) =>
-    destination.airports.map((destinationAirport) => ({
-      origin: origin.code,
-      destinationAirport
-    }))
   );
 
   const settled = await mapWithConcurrency(pairs, AIRPORT_PAIR_CONCURRENCY, (pair) =>
     searchAirportPair(provider, pair.origin, pair.destinationAirport, fromDate, toDate)
   );
 
-  const results: FlightResult[] = [];
-  let lastError: string | null = null;
+  const resultsByCity = new Map<string, FlightResult[]>();
+  const errorByCity = new Map<string, string>();
 
-  for (const outcome of settled) {
+  settled.forEach((outcome, index) => {
+    const city = pairs[index]!.city;
     if (outcome.status === "fulfilled") {
-      if (outcome.value) results.push(outcome.value);
-    } else {
-      lastError =
-        outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+      if (outcome.value) {
+        const existing = resultsByCity.get(city) ?? [];
+        existing.push(outcome.value);
+        resultsByCity.set(city, existing);
+      }
+      return;
     }
-  }
 
-  results.sort((a, b) => a.price - b.price);
+    errorByCity.set(
+      city,
+      outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)
+    );
+  });
+
+  return targetDestinations
+    .map((destination) => toOutcome(destination, resultsByCity, errorByCity))
+    .sort((a, b) => {
+      if (a.cheapest && b.cheapest) return a.cheapest.price - b.cheapest.price;
+      if (a.cheapest) return -1;
+      if (b.cheapest) return 1;
+      return 0;
+    });
+}
+
+function toOutcome(
+  destination: Destination,
+  resultsByCity: Map<string, FlightResult[]>,
+  errorByCity: Map<string, string>
+): DestinationSearchOutcome {
+  const results = [...(resultsByCity.get(destination.city) ?? [])].sort(
+    (a, b) => a.price - b.price
+  );
 
   return {
     city: destination.city,
@@ -75,9 +91,7 @@ async function searchDestination(
     cheapest: results[0] ?? null,
     alternatives: results.slice(1),
     error:
-      results.length === 0
-        ? (lastError ?? "Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin.")
-        : null
+      results.length === 0 ? (errorByCity.get(destination.city) ?? GENERIC_ERROR) : null
   };
 }
 

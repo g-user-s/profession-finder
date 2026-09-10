@@ -1,22 +1,15 @@
 import { NextResponse } from "next/server";
-import { destinations } from "@/lib/destinations";
-import { getAllLatestSnapshotsSafely } from "@/lib/dailySnapshot";
+import { getDailyTop } from "@/lib/dailyTop";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
- * Serves the homepage's default view: the cheapest 4 destinations for
- * tomorrow, read straight from the daily cron's last snapshot (no live
- * Google Flights call on the request path — instant, and doesn't cost a
- * Google request per visitor).
+ * The same data the homepage server-renders: the cheapest 4 destinations
+ * for tomorrow. Served from the daily cron's Redis snapshot, or computed
+ * live if that snapshot is missing/stale (see lib/dailyTop.ts).
  */
 export async function GET() {
-  const snapshots = await getAllLatestSnapshotsSafely(
-    destinations.map((destination) => destination.city)
-  );
-  const top = snapshots
-    .sort((a, b) => a.cheapest.price - b.cheapest.price)
-    .slice(0, 4);
-
-  return NextResponse.json({ snapshots: top });
+  const { snapshots, date, source } = await getDailyTop();
+  return NextResponse.json({ date, source, snapshots });
 }

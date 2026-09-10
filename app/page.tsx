@@ -1,10 +1,13 @@
+import type { DailyDestinationSnapshot } from "@/lib/dailySnapshot";
+import { getDailyTop } from "@/lib/dailyTop";
 import { destinations } from "@/lib/destinations";
-import { getAllLatestSnapshotsSafely, type DailyDestinationSnapshot } from "@/lib/dailySnapshot";
 
-// Reads from KV (see lib/dailySnapshot.ts) on every request — this must
-// never be statically prerendered at build time, since the KV store (and
-// its data) may not exist yet at build time.
+// Reads Redis (and, before the first cron run, falls back to a live
+// search) on every request — this must never be statically prerendered at
+// build time, since neither is available then.
 export const dynamic = "force-dynamic";
+// Only the live fallback path is slow; the normal Redis read is instant.
+export const maxDuration = 60;
 
 function formatPrice(price: number, currency: string): string {
   try {
@@ -78,12 +81,7 @@ function DealCard({ snapshot }: { snapshot: DailyDestinationSnapshot }) {
 }
 
 export default async function HomePage() {
-  const allSnapshots = await getAllLatestSnapshotsSafely(
-    destinations.map((destination) => destination.city)
-  );
-  const dailyTop = [...allSnapshots]
-    .sort((a, b) => a.cheapest.price - b.cheapest.price)
-    .slice(0, 4);
+  const { snapshots: dailyTop } = await getDailyTop();
 
   return (
     <>
@@ -96,8 +94,8 @@ export default async function HomePage() {
         <h2>Yarın için en ucuz fırsatlar</h2>
         {dailyTop.length === 0 ? (
           <p>
-            Fırsatlar hazırlanıyor — her sabah 09:00'da (İstanbul saati) güncellenir, yakında
-            burada görünecek.
+            Uçuş fiyatları şu anda alınamadı. Lütfen birkaç dakika sonra tekrar deneyin —
+            liste her sabah 09:00'da (İstanbul saati) yenilenir.
           </p>
         ) : (
           <div className="deal-grid">

@@ -84,6 +84,14 @@ tüm DOM değişiklikleri kullanıcı etkileşiminden sonra olur.
 Her gün 09:00'da (İstanbul saati) `api/cron/daily-snapshot` tetiklenir,
 5 destinasyonun **yarın** tarihi için en ucuz fiyatı bulur ve Redis'e yazar.
 
+Site kendi kendini besler: Redis'te **yarın** tarihine ait veri yoksa
+(henüz hiç cron çalışmadıysa veya kayıtlı veri bayatladıysa) sayfa o anda
+canlı arama yapar, sonucu gösterir ve Redis'e yazar (`lib/dailyTop.ts`).
+Yani ilk cron'u veya kurulumu beklemeden site çalışır — sadece o ilk
+istek yavaştır, sonraki ziyaretçiler hızlı yolu kullanır. Bayat veriyi
+"Yarın" başlığı altında göstermek yanlış olacağı için tarih eşleşmesi
+şart koşulur.
+
 Google'ın "normalden %X ucuz" rozetinin arkasındaki gerçek algoritmasına
 erişimimiz yok, bu yüzden kendi geçmişimizi biriktiriyoruz:
 
@@ -123,7 +131,9 @@ gösterilir), hata vermez.
 
 1. Bu repoyu GitHub'da Vercel'e bağlayın (Vercel dashboard → Add New Project
    → bu repoyu seçin, branch: `main`) ya da Vercel CLI ile: `npx vercel --prod`
-2. **Upstash Redis ekleyin** (günlük fırsatlar için gerekli):
+2. **Upstash Redis ekleyin** (site Redis'siz de çalışır — her istekte canlı
+   arama yapar, sadece yavaş olur ve "normalden %X ucuz" rozeti için gereken
+   fiyat geçmişi birikmez):
    Vercel dashboard → projeniz → Storage → Marketplace Database Providers →
    "Upstash for Redis" → oluştur ve projeye bağla. `UPSTASH_REDIS_REST_URL`
    ve `UPSTASH_REDIS_REST_TOKEN` otomatik eklenir, elle girmeyin.

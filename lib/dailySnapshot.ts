@@ -72,6 +72,34 @@ export async function recordDailySnapshot(
   return snapshot;
 }
 
+/**
+ * Same as recordDailySnapshot, but a Redis failure (not configured yet, or
+ * a transient outage) degrades to an unpersisted snapshot instead of
+ * throwing — the caller still gets a usable price to show, just without a
+ * history-backed baseline.
+ */
+export async function recordDailySnapshotSafely(
+  city: string,
+  country: string,
+  date: string,
+  cheapest: FlightResult
+): Promise<DailyDestinationSnapshot> {
+  try {
+    return await recordDailySnapshot(city, country, date, cheapest);
+  } catch (error) {
+    console.error(`Failed to persist daily snapshot for ${city}:`, error);
+    return {
+      city,
+      country,
+      date,
+      cheapest,
+      baseline: null,
+      discountPercent: null,
+      capturedAt: new Date().toISOString()
+    };
+  }
+}
+
 export async function getLatestSnapshot(city: string): Promise<DailyDestinationSnapshot | null> {
   const value = await redis.get<DailyDestinationSnapshot>(latestKey(city));
   return value ?? null;

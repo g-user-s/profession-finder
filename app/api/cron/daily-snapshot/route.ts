@@ -18,6 +18,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return NextResponse.json(
+      {
+        error:
+          "Redis yapılandırılmamış. Vercel dashboard → Storage → Upstash for Redis entegrasyonunu bu projeye ekleyin (bkz. README)."
+      },
+      { status: 503 }
+    );
+  }
+
   const { fromDate } = resolveDateRange("tomorrow");
   const outcomes = await searchCheapestFlights({ city: "all", dateOption: "tomorrow" });
 
