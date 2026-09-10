@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { jsonResponse } from "@/lib/json";
 import {
   buildGoogleFlightsSearchUrl,
   fetchGoogleFlightsPage
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     const diagnostics = diagnosePageData(data);
     const options = data ? parseGoogleFlightsPageData(data, curr) : [];
 
-    return NextResponse.json({
+    return jsonResponse({
       ok: page.status === 200 && options.length > 0,
       origin,
       destination,
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       htmlSnippet: options.length === 0 ? page.html.slice(0, 1500) : undefined
     });
   } catch (error) {
-    return NextResponse.json(
+    return jsonResponse(
       {
         ok: false,
         origin,
@@ -64,8 +64,6 @@ export async function GET(request: Request) {
         requestUrl: url,
         elapsedMs: Date.now() - startedAt,
         error: error instanceof Error ? error.message : String(error)
-      },
-      { status: 502 }
-    );
+      }, 502);
   }
 }

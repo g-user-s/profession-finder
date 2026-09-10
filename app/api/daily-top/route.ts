@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { getDailyTop } from "@/lib/dailyTop";
+import { jsonResponse } from "@/lib/json";
 import { getRedisCredentials } from "@/lib/redis";
 
 export const runtime = "nodejs";
@@ -15,15 +15,16 @@ export const maxDuration = 60;
  */
 export async function GET() {
   const credentials = getRedisCredentials();
-  const { snapshots, date, source } = await getDailyTop();
+  const { snapshots, date, source, missing } = await getDailyTop();
 
-  return NextResponse.json({
+  return jsonResponse({
     date,
     source,
     storage: {
       configured: credentials !== null,
       envVarStyle: credentials?.source ?? null
     },
+    missing,
     snapshots
   });
 }

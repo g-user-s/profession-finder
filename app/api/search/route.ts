@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { jsonResponse } from "@/lib/json";
 import { destinations } from "@/lib/destinations";
 import { searchCheapestFlights } from "@/lib/search";
 import type { DateOption } from "@/lib/types";
@@ -15,16 +15,14 @@ export async function GET(request: Request) {
   const dateOption = searchParams.get("dateOption") as DateOption | null;
 
   if (!dateOption || !validDateOptions.includes(dateOption)) {
-    return NextResponse.json(
-      { error: "Geçersiz dateOption. Beklenen: tomorrow, this_week, this_month" },
-      { status: 400 }
-    );
+    return jsonResponse(
+      { error: "Geçersiz dateOption. Beklenen: tomorrow, this_week, this_month" }, 400);
   }
 
   if (city !== "all" && !validCities.has(city)) {
-    return NextResponse.json({ error: `Geçersiz destinasyon: ${city}` }, { status: 400 });
+    return jsonResponse({ error: `Geçersiz destinasyon: ${city}` }, 400);
   }
 
   const results = await searchCheapestFlights({ city, dateOption });
-  return NextResponse.json({ results });
+  return jsonResponse({ results });
 }

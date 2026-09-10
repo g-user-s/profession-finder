@@ -145,6 +145,10 @@ gösterilir), hata vermez.
    doğrulayabilirsiniz: `storage.configured` `true` olmalı ve ilk cron/
    ziyaretten sonra `source` `"stored"` dönmelidir. `source` sürekli
    `"live"` kalıyorsa veri kaydedilmiyordur.
+
+   Listede beş destinasyonun tamamı yoksa sebebi aynı yanıttaki `missing`
+   alanında yazar (ör. Google'ın o rota için döndürdüğü hata). Boş liste
+   sessizce kısalmaz.
 3. **CRON_SECRET ekleyin**: Project Settings → Environment Variables →
    `CRON_SECRET` = rastgele bir string. `vercel.json`'daki cron zaten
    `/api/cron/daily-snapshot`'ı her gün 06:00 UTC'de (09:00 İstanbul)

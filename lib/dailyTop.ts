@@ -14,6 +14,12 @@ export type DailyTop = {
   date: string;
   /** "stored" = the cron's data; "live" = computed on this request. */
   source: "stored" | "live";
+  /**
+   * Destinations that produced no price. Surfaced (rather than silently
+   * dropped) because a short list is the symptom you notice, and the
+   * reason — throttling, a parse failure — is what you actually need.
+   */
+  missing: Array<{ city: string; error: string | null }>;
 };
 
 function cheapestFirst(snapshots: DailyDestinationSnapshot[]): DailyDestinationSnapshot[] {
@@ -40,17 +46,35 @@ export async function getDailyTop(limit = DAILY_TOP_LIMIT): Promise<DailyTop> {
     (snapshot) => snapshot.date === tomorrow
   );
   if (stored.length > 0) {
-    return { snapshots: cheapestFirst(stored).slice(0, limit), date: tomorrow, source: "stored" };
+    const storedCities = new Set(stored.map((snapshot) => snapshot.city));
+    return {
+      snapshots: cheapestFirst(stored).slice(0, limit),
+      date: tomorrow,
+      source: "stored",
+      missing: cities
+        .filter((city) => !storedCities.has(city))
+        .map((city) => ({ city, error: null }))
+    };
   }
 
   const outcomes = await searchCheapestFlights({ city: "all", dateOption: "tomorrow" });
   const live: DailyDestinationSnapshot[] = [];
+  const missing: Array<{ city: string; error: string | null }> = [];
+
   for (const outcome of outcomes) {
-    if (!outcome.cheapest) continue;
+    if (!outcome.cheapest) {
+      missing.push({ city: outcome.city, error: outcome.error });
+      continue;
+    }
     live.push(
       await recordDailySnapshotSafely(outcome.city, outcome.country, tomorrow, outcome.cheapest)
     );
   }
 
-  return { snapshots: cheapestFirst(live).slice(0, limit), date: tomorrow, source: "live" };
+  return {
+    snapshots: cheapestFirst(live).slice(0, limit),
+    date: tomorrow,
+    source: "live",
+    missing
+  };
 }

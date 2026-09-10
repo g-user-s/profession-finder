@@ -24,6 +24,8 @@ import type {
 
 const GOOGLE_FLIGHTS_PAGE_URL = "https://www.google.com/travel/flights";
 const REQUEST_TIMEOUT_MS = 12_000;
+const MAX_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 700;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36";
 
@@ -53,9 +55,7 @@ export type FetchedGoogleFlightsPage = {
  * the raw response — status, final URL after redirects, HTML length — when
  * diagnosing why a query returned no results.
  */
-export async function fetchGoogleFlightsPage(
-  url: string
-): Promise<FetchedGoogleFlightsPage> {
+async function fetchOnce(url: string): Promise<FetchedGoogleFlightsPage> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -80,6 +80,31 @@ export async function fetchGoogleFlightsPage(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Statuses worth another attempt: Google throttling or a transient edge error. */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status === 503 || status === 500;
+}
+
+export async function fetchGoogleFlightsPage(
+  url: string
+): Promise<FetchedGoogleFlightsPage> {
+  let lastPage: FetchedGoogleFlightsPage | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    if (attempt > 0) {
+      // Back off with jitter — a whole search's worth of retries firing in
+      // lockstep would just reproduce the burst that got us throttled.
+      const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.random() * 250;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    lastPage = await fetchOnce(url);
+    if (!isRetryableStatus(lastPage.status)) return lastPage;
+  }
+
+  return lastPage!;
 }
 
 async function fetchPageData(url: string, context: string): Promise<unknown[]> {
